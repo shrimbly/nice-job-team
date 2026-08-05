@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>Board</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.shrimbly.nice-job-team</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Nice job team</string>
+	<!-- The name Finder and the menu bar show. The bundle on disk is
+	     NiceJobTeam.app, so nothing on a path has to carry spaces. -->
+	<key>CFBundleDisplayName</key>
+	<string>Nice job team</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<!-- SwiftPM produces a bare executable; without this AppKit never takes over the
+	     process and no status item is ever created. -->
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<!-- Menu-bar only: no Dock icon, no app switcher entry. -->
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticTermination</key>
+	<false/>
+	<key>NSSupportsSuddenTermination</key>
+	<false/>
+</dict>
+</plist>

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "workspaceId": "5ad080be-883c-4861-963f-408ae699b43d",
+  "itemId": "itm_444",
+  "slug": "pr444-rebase",
+  "branch": "dev/eng-597-stone-fern",
+  "baseBranch": "main",
+  "worktreePath": "/Users/dev/code/platform",
+  "state": "building",
+  "phase": "oriented: the files that own this",
+  "updatedAt": "2026-07-30T18:23:04Z",
+  "summary": null,
+  "verification": {},
+  "diffstat": null,
+  "risks": [],
+  "questions": [],
+  "blockedReason": null,
+  "pr": {
+    "number": null,
+    "url": null
+  },
+  "needsOperator": false
+}

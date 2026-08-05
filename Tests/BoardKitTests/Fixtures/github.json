@@ -1,0 +1,246 @@
+{
+  "collectedAt": "2026-07-30T18:20:16Z",
+  "repos": [
+    {
+      "repo": "acme/platform",
+      "open": [
+        {
+          "baseRefName": "main",
+          "headRefName": "dev/eng-584-loop-north",
+          "isDraft": true,
+          "mergeStateStatus": "BLOCKED",
+          "number": 467,
+          "reviewDecision": "REVIEW_REQUIRED",
+          "title": "Debounce the search field",
+          "updatedAt": "2026-07-30T17:16:22Z",
+          "url": "https://github.com/acme/platform/pull/467",
+          "repo": "acme/platform",
+          "previewUrl": "https://website-git-dev-eng-584-loop-north-acme.vercel.app",
+          "ciState": "red",
+          "unresolvedThreads": 0,
+          "unresolvedSample": [],
+          "latestActivityAt": null,
+          "reviewStates": {}
+        },
+        {
+          "baseRefName": "main",
+          "headRefName": "dev/eng-595-tide-north",
+          "isDraft": true,
+          "mergeStateStatus": "BLOCKED",
+          "number": 466,
+          "reviewDecision": "REVIEW_REQUIRED",
+          "title": "Collapse the advanced section",
+          "updatedAt": "2026-07-30T16:06:59Z",
+          "url": "https://github.com/acme/platform/pull/466",
+          "repo": "acme/platform",
+          "previewUrl": "https://website-git-dev-eng-595-tide-north-acme.vercel.app",
+          "ciState": "green",
+          "unresolvedThreads": 0,
+          "unresolvedSample": [],
+          "latestActivityAt": null,
+          "reviewStates": {}
+        },
+        {
+          "baseRefName": "dev/eng-594-fern-water",
+          "headRefName": "dev/eng-597-stone-fern",
+          "isDraft": false,
+          "mergeStateStatus": "CLEAN",
+          "number": 444,
+          "reviewDecision": "",
+          "title": "Trim the empty states",
+          "updatedAt": "2026-07-30T16:46:50Z",
+          "url": "https://github.com/acme/platform/pull/444",
+          "repo": "acme/platform",
+          "previewUrl": "https://website-git-dev-eng-597-stone-fern-acme.vercel.app",
+          "ciState": "green",
+          "unresolvedThreads": 0,
+          "unresolvedSample": [],
+          "latestActivityAt": null,
+          "reviewStates": {}
+        },
+        {
+          "baseRefName": "main",
+          "headRefName": "dev/eng-594-fern-water",
+          "isDraft": false,
+          "mergeStateStatus": "DIRTY",
+          "number": 442,
+          "reviewDecision": "APPROVED",
+          "title": "Filter the requirements list",
+          "updatedAt": "2026-07-30T17:05:03Z",
+          "url": "https://github.com/acme/platform/pull/442",
+          "repo": "acme/platform",
+          "previewUrl": "https://website-git-dev-eng-594-fern-water-acme.vercel.app",
+          "ciState": "green",
+          "unresolvedThreads": 0,
+          "unresolvedSample": [],
+          "latestActivityAt": "2026-07-30T16:56:52Z",
+          "reviewStates": {
+            "wei-hai": "APPROVED"
+          }
+        },
+        {
+          "baseRefName": "main",
+          "headRefName": "dev/river-water",
+          "isDraft": false,
+          "mergeStateStatus": "BLOCKED",
+          "number": 438,
+          "reviewDecision": "APPROVED",
+          "title": "Paginate the audit list",
+          "updatedAt": "2026-07-30T03:57:01Z",
+          "url": "https://github.com/acme/platform/pull/438",
+          "repo": "acme/platform",
+          "previewUrl": "https://website-git-dev-river-water-acme.vercel.app",
+          "ciState": "red",
+          "unresolvedThreads": 0,
+          "unresolvedSample": [],
+          "latestActivityAt": "2026-07-30T03:57:01Z",
+          "reviewStates": {
+            "wei-hai": "APPROVED"
+          }
+        }
+      ],
+      "merged": [
+        {
+          "headRefName": "dev/north-tide",
+          "mergedAt": "2026-07-29T23:53:01Z",
+          "number": 434,
+          "title": "Add the export button",
+          "url": "https://github.com/acme/platform/pull/434"
+        },
+        {
+          "headRefName": "dev/eng-587-river-field",
+          "mergedAt": "2026-07-29T19:37:26Z",
+          "number": 422,
+          "title": "Widen the log column",
+          "url": "https://github.com/acme/platform/pull/422"
+        },
+        {
+          "headRefName": "dev/eng-578-field-water",
+          "mergedAt": "2026-07-29T18:20:04Z",
+          "number": 418,
+          "title": "Show stage events",
+          "url": "https://github.com/acme/platform/pull/418"
+        },
+        {
+          "headRefName": "dev/eng-586-north-harbor",
+          "mergedAt": "2026-07-29T17:15:02Z",
+          "number": 415,
+          "title": "Add the export button",
+          "url": "https://github.com/acme/platform/pull/415"
+        },
+        {
+          "headRefName": "dev/eng-585-loop-harbor",
+          "mergedAt": "2026-07-29T17:05:36Z",
+          "number": 414,
+          "title": "Collapse the advanced section",
+          "url": "https://github.com/acme/platform/pull/414"
+        },
+        {
+          "headRefName": "dev/tide-river",
+          "mergedAt": "2026-07-29T02:36:50Z",
+          "number": 398,
+          "title": "Add the export button",
+          "url": "https://github.com/acme/platform/pull/398"
+        },
+        {
+          "headRefName": "dev/loop-field",
+          "mergedAt": "2026-07-30T18:08:26Z",
+          "number": 391,
+          "title": "Trim the empty states",
+          "url": "https://github.com/acme/platform/pull/391"
+        },
+        {
+          "headRefName": "dev/eng-579-stone-tide",
+          "mergedAt": "2026-07-29T23:56:14Z",
+          "number": 379,
+          "title": "Add the export button",
+          "url": "https://github.com/acme/platform/pull/379"
+        },
+        {
+          "headRefName": "dev/loop-stone",
+          "mergedAt": "2026-07-27T20:55:35Z",
+          "number": 378,
+          "title": "Name the default preset",
+          "url": "https://github.com/acme/platform/pull/378"
+        },
+        {
+          "headRefName": "dev/tide-birch",
+          "mergedAt": "2026-07-25T13:28:09Z",
+          "number": 376,
+          "title": "Cache the region lookup",
+          "url": "https://github.com/acme/platform/pull/376"
+        },
+        {
+          "headRefName": "dev/stone-north",
+          "mergedAt": "2026-07-25T14:33:17Z",
+          "number": 373,
+          "title": "Sort the presets by use",
+          "url": "https://github.com/acme/platform/pull/373"
+        },
+        {
+          "headRefName": "dev/water-river",
+          "mergedAt": "2026-07-25T16:24:33Z",
+          "number": 368,
+          "title": "Group the run history",
+          "url": "https://github.com/acme/platform/pull/368"
+        },
+        {
+          "headRefName": "dev/river-oak",
+          "mergedAt": "2026-07-25T13:59:09Z",
+          "number": 366,
+          "title": "Filter the requirements list",
+          "url": "https://github.com/acme/platform/pull/366"
+        },
+        {
+          "headRefName": "dev/eng-570-oak-field",
+          "mergedAt": "2026-07-25T14:20:48Z",
+          "number": 360,
+          "title": "Add the export button",
+          "url": "https://github.com/acme/platform/pull/360"
+        },
+        {
+          "headRefName": "dev/eng-557-water-ridge",
+          "mergedAt": "2026-07-22T20:56:58Z",
+          "number": 359,
+          "title": "Cache the region lookup",
+          "url": "https://github.com/acme/platform/pull/359"
+        },
+        {
+          "headRefName": "dev/eng-558-loop-loop",
+          "mergedAt": "2026-07-22T16:49:46Z",
+          "number": 345,
+          "title": "Filter the requirements list",
+          "url": "https://github.com/acme/platform/pull/345"
+        },
+        {
+          "headRefName": "dev/eng-540-ridge-cedar",
+          "mergedAt": "2026-07-24T00:54:03Z",
+          "number": 335,
+          "title": "Warn before a destructive save",
+          "url": "https://github.com/acme/platform/pull/335"
+        },
+        {
+          "headRefName": "dev/eng-540-cedar-loop",
+          "mergedAt": "2026-07-22T18:23:33Z",
+          "number": 334,
+          "title": "Cache the region lookup",
+          "url": "https://github.com/acme/platform/pull/334"
+        },
+        {
+          "headRefName": "dev/eng-545-loop-loop",
+          "mergedAt": "2026-07-21T18:39:50Z",
+          "number": 333,
+          "title": "Group the run history",
+          "url": "https://github.com/acme/platform/pull/333"
+        },
+        {
+          "headRefName": "dev/eng-539-north-river",
+          "mergedAt": "2026-07-21T18:39:43Z",
+          "number": 328,
+          "title": "Paginate the audit list",
+          "url": "https://github.com/acme/platform/pull/328"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "workspaceId": "9f918c19-0e55-4a17-9179-7f2dc95135f4",
+  "itemId": "itm_board",
+  "slug": "board-app",
+  "branch": "build/stone-meadow",
+  "baseBranch": "main",
+  "worktreePath": "/Users/dev/code/platform",
+  "state": "building",
+  "phase": "planning",
+  "updatedAt": "2026-07-30T18:18:59Z",
+  "summary": null,
+  "verification": {},
+  "diffstat": null,
+  "risks": [],
+  "questions": [],
+  "blockedReason": null,
+  "pr": {
+    "number": null,
+    "url": null
+  },
+  "needsOperator": false
+}

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "workspaceId": "ws-blocked",
+  "state": "blocked",
+  "needsOperator": true,
+  "phase": "rebasing onto main"
+}

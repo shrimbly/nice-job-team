@@ -1,0 +1,401 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "i-blocked",
+      "title": "Warn before a destructive save",
+      "state": "building",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": "ws-blocked",
+      "pr": {
+        "number": 901
+      }
+    },
+    {
+      "id": "i-needs",
+      "title": "Warn before a destructive save",
+      "state": "building",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": "ws-needs",
+      "pr": {
+        "number": 902
+      }
+    },
+    {
+      "id": "i-building",
+      "title": "Batch the status writes",
+      "state": "building",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": "ws-building",
+      "pr": {
+        "number": 903
+      }
+    },
+    {
+      "id": "i-fixing-agent",
+      "title": "Collapse the advanced section",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": "ws-fixing",
+      "pr": {
+        "number": 904
+      }
+    },
+    {
+      "id": "i-fixing-item",
+      "title": "Warn before a destructive save",
+      "state": "fixing",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 905
+      }
+    },
+    {
+      "id": "i-draft",
+      "title": "Add the export button",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 906
+      }
+    },
+    {
+      "id": "i-ci-red",
+      "title": "Add the export button",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 907
+      }
+    },
+    {
+      "id": "i-conflicts",
+      "title": "Filter the requirements list",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 908
+      }
+    },
+    {
+      "id": "i-mergeable",
+      "title": "Filter the requirements list",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 909
+      }
+    },
+    {
+      "id": "i-mergeable-running",
+      "title": "Group the run history",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 910
+      }
+    },
+    {
+      "id": "i-conflicts-running",
+      "title": "Trim the empty states",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 911
+      }
+    },
+    {
+      "id": "i-changes",
+      "title": "Group the run history",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 912
+      }
+    },
+    {
+      "id": "i-in-review",
+      "title": "Show stage events",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 913
+      }
+    },
+    {
+      "id": "i-in-review-red",
+      "title": "Remove the API key fields",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 914
+      }
+    },
+    {
+      "id": "i-no-reviewer-red",
+      "title": "Drop the legacy flag",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 915
+      }
+    },
+    {
+      "id": "i-changes-red",
+      "title": "Batch the status writes",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 916
+      }
+    },
+    {
+      "id": "i-draft-red",
+      "title": "Retry the upload once",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 917
+      }
+    },
+    {
+      "id": "i-no-reviewer",
+      "title": "Name the default preset",
+      "state": "pr-open",
+      "source": {
+        "kind": "linear",
+        "externalId": "ENG-101"
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "outcome": "A user can reach the setting without opening the console.",
+      "pr": {
+        "number": 918
+      }
+    },
+    {
+      "id": "i-merged",
+      "title": "Filter the requirements list",
+      "state": "merged",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 700
+      }
+    },
+    {
+      "id": "i-gone",
+      "title": "Widen the log column",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 701
+      }
+    },
+    {
+      "id": "i-dispatched",
+      "title": "Restore the node toggles",
+      "state": "dispatched",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null
+    },
+    {
+      "id": "i-building-nopr",
+      "title": "Retry the upload once",
+      "state": "building",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null
+    },
+    {
+      "id": "i-other",
+      "title": "Batch the status writes",
+      "state": "queued",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null
+    },
+    {
+      "id": "i-closed",
+      "title": "Remove the API key fields",
+      "state": "closed",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null,
+      "pr": {
+        "number": 702
+      }
+    },
+    {
+      "id": "i-rejected",
+      "title": "Split the settings panel",
+      "state": "rejected",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": null
+    },
+    {
+      "id": "i-links",
+      "title": "Paginate the audit list",
+      "state": "pr-open",
+      "source": {
+        "kind": "linear",
+        "externalId": "ENG-777"
+      },
+      "branch": "feat/x",
+      "workspaceId": "ws-links",
+      "outcome": "The list stays readable when a run has hundreds of steps.",
+      "pr": {
+        "number": 919
+      }
+    },
+    {
+      "id": "i-summary-only",
+      "title": "Remove the API key fields",
+      "state": "building",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": "ws-sum",
+      "pr": {
+        "number": 920
+      }
+    },
+    {
+      "id": "i-gate-nosummary",
+      "title": "Collapse the advanced section",
+      "state": "pr-open",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/x",
+      "workspaceId": "ws-gate-nosum",
+      "pr": {
+        "number": 921
+      }
+    },
+    {
+      "id": "i-ready",
+      "title": "Sort the presets by use",
+      "state": "ready",
+      "source": {
+        "kind": "github",
+        "externalId": null
+      },
+      "branch": "feat/ready",
+      "workspaceId": null,
+      "pr": {
+        "number": 933
+      }
+    }
+  ]
+}

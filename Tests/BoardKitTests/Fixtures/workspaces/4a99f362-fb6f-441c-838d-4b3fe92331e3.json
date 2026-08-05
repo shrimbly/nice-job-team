@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "workspaceId": "4a99f362-fb6f-441c-838d-4b3fe92331e3",
+  "itemId": "itm_438",
+  "slug": "pr438-ci-fix",
+  "branch": "dev/river-water",
+  "baseBranch": "main",
+  "worktreePath": "/Users/dev/code/desktop",
+  "state": "awaiting-approval",
+  "phase": "orienting",
+  "updatedAt": "2026-07-30T17:16:36Z",
+  "summary": "The panel reports one state, read the same way everywhere.",
+  "verification": {
+    "target_spec_before": "FAIL — distributionVersions.spec.ts:69, 'element(s) not found' for .timeline-fold; identical to CI",
+    "target_spec_after": "PASS — 21.1s; all 4 tests in the file green",
+    "e2e": "pass — all 76/76 tests green locally (run in batches; union verified, zero failures)",
+    "unit": "pass — 56 files / 522 tests, 0 failures",
+    "lint": "pass — 0 errors (1 pre-existing v-html warning in RunViaApiSection.vue, untouched)",
+    "typecheck": "15 errors locally, ALL pre-existing and none in the file I touched; CI's typecheck job is PASS on this PR (job 90768337675) — local errors trace to the same .env/vercel-preset quirk"
+  },
+  "diffstat": {
+    "files": 19,
+    "insertions": 1738,
+    "deletions": 778
+  },
+  "risks": [
+    "distributionVersions.spec.ts:61 locates '.artifact-row, .artifact-card' but .artifact-row has never existed — not on main either. Harmless (.artifact-card is real) but the fallback is dead. Left alone to keep the approved diff minimal.",
+    "distributionBuilder.spec.ts:78 was FLAKY in CI (passed on retry), not failed. It passes locally now. Root cause not investigated per brief; if it keeps flaking it needs its own item.",
+    "Local-only env traps, not PR issues: (1) .env sets POSTHOG_KEY so distributions_enabled resolves off locally and every distributions spec dies at .version-item — CI has no POSTHOG_KEY so useFeatureFlag falls back to dev defaults; (2) .env sets VERCEL_* so Nitro builds the vercel preset and @nuxt/test-utils cannot find .nuxt/test/<hash>/output/server/index.mjs, failing the auth specs; (3) a stale nuxt dev from Jul 29 still holds :3000 and playwright reuseExistingServer silently tests it."
+  ],
+  "questions": [],
+  "blockedReason": null,
+  "pr": {
+    "number": null,
+    "url": null
+  },
+  "needsOperator": true
+}

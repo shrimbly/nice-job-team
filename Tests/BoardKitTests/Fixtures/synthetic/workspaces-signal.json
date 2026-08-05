@@ -1,0 +1,16 @@
+{
+  "workspaces": [
+    {
+      "id": "ws-links",
+      "name": "still-water"
+    },
+    {
+      "id": "ws-building",
+      "name": "high-tide"
+    },
+    {
+      "id": "ws-blocked",
+      "name": "open-meadow"
+    }
+  ]
+}

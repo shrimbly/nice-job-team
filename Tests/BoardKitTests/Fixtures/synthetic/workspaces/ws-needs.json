@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "workspaceId": "ws-needs",
+  "state": "awaiting-approval",
+  "needsOperator": true,
+  "summary": "The panel reports one state, read the same way everywhere."
+}

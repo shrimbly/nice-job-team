@@ -1,0 +1,497 @@
+[
+  {
+    "baseRefName": "main",
+    "headRefName": "dev/eng-584-loop-north",
+    "isDraft": true,
+    "mergeStateStatus": "BLOCKED",
+    "number": 467,
+    "reviewDecision": "REVIEW_REQUIRED",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:15:58Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30565190746/job/90947833145",
+        "name": "blue-harbor",
+        "startedAt": "2026-07-30T17:15:51Z",
+        "status": "COMPLETED",
+        "workflowName": "Assign Reviewers"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:16:04Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30565190705/job/90947832544",
+        "name": "grey-linden",
+        "startedAt": "2026-07-30T17:15:57Z",
+        "status": "COMPLETED",
+        "workflowName": "CI - Cursor Review Auto-Label"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:17:04Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30565190156/job/90947830175",
+        "name": "grey-linden",
+        "startedAt": "2026-07-30T17:15:49Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:17:04Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30565190156/job/90947830122",
+        "name": "still-water",
+        "startedAt": "2026-07-30T17:15:49Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:19:24Z",
+        "conclusion": "FAILURE",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30565190156/job/90947830125",
+        "name": "grey-linden",
+        "startedAt": "2026-07-30T17:15:51Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "StatusContext",
+        "context": "CodeRabbit",
+        "startedAt": "2026-07-30T17:15:51Z",
+        "state": "SUCCESS",
+        "targetUrl": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:15:54Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://socket.dev/dashboard/org/acme/sbom/c74e0188-d782-4462-ab43-c6746435b338",
+        "name": "grey-linden",
+        "startedAt": "2026-07-30T17:15:47Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:15:52Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://socket.dev",
+        "name": "still-water",
+        "startedAt": "2026-07-30T17:15:47Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "StatusContext",
+        "context": "Vercel",
+        "startedAt": "2026-07-30T17:16:20Z",
+        "state": "SUCCESS",
+        "targetUrl": "https://vercel.com/acme/website/7tPNZ53nLH67BQj2iujgcbrXcM7M"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:16:22Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://vercel.com/github",
+        "name": "amber-loop",
+        "startedAt": "2026-07-30T17:16:22Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      }
+    ],
+    "title": "Debounce the search field",
+    "updatedAt": "2026-07-30T17:16:22Z",
+    "url": "https://github.com/acme/platform/pull/467"
+  },
+  {
+    "baseRefName": "main",
+    "headRefName": "dev/eng-595-tide-north",
+    "isDraft": true,
+    "mergeStateStatus": "BLOCKED",
+    "number": 466,
+    "reviewDecision": "REVIEW_REQUIRED",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T16:06:17Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30559894430/job/90929889459",
+        "name": "slate-river",
+        "startedAt": "2026-07-30T16:06:08Z",
+        "status": "COMPLETED",
+        "workflowName": "Assign Reviewers"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T16:06:23Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30559894687/job/90929890093",
+        "name": "quiet-fern",
+        "startedAt": "2026-07-30T16:06:16Z",
+        "status": "COMPLETED",
+        "workflowName": "CI - Cursor Review Auto-Label"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T16:07:25Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30559893817/job/90929887110",
+        "name": "high-tide",
+        "startedAt": "2026-07-30T16:06:07Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T16:07:42Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30559893817/job/90929887055",
+        "name": "high-tide",
+        "startedAt": "2026-07-30T16:06:15Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T16:23:02Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30559893817/job/90929887028",
+        "name": "warm-cedar",
+        "startedAt": "2026-07-30T16:06:16Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "StatusContext",
+        "context": "CodeRabbit",
+        "startedAt": "2026-07-30T16:06:12Z",
+        "state": "SUCCESS",
+        "targetUrl": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T16:06:14Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://socket.dev/dashboard/org/acme/sbom/9d9165e8-bb86-496f-a1c1-ed5dc10221c9",
+        "name": "quiet-fern",
+        "startedAt": "2026-07-30T16:06:05Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T16:06:09Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://socket.dev",
+        "name": "warm-cedar",
+        "startedAt": "2026-07-30T16:06:05Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "StatusContext",
+        "context": "Vercel",
+        "startedAt": "2026-07-30T16:06:58Z",
+        "state": "SUCCESS",
+        "targetUrl": "https://vercel.com/acme/website/7iAXNk1CquPP7Dt56yGPwmoEt2As"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T16:06:59Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://vercel.com/github",
+        "name": "high-tide",
+        "startedAt": "2026-07-30T16:06:59Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      }
+    ],
+    "title": "Collapse the advanced section",
+    "updatedAt": "2026-07-30T16:06:59Z",
+    "url": "https://github.com/acme/platform/pull/466"
+  },
+  {
+    "baseRefName": "dev/eng-594-fern-water",
+    "headRefName": "dev/eng-597-stone-fern",
+    "isDraft": false,
+    "mergeStateStatus": "CLEAN",
+    "number": 444,
+    "reviewDecision": "",
+    "statusCheckRollup": [
+      {
+        "__typename": "StatusContext",
+        "context": "CodeRabbit",
+        "startedAt": "2026-07-30T16:45:57Z",
+        "state": "SUCCESS",
+        "targetUrl": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T16:45:58Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://socket.dev/dashboard/org/acme/sbom/205172ca-d193-474d-b75d-a64d4561f74c",
+        "name": "blue-harbor",
+        "startedAt": "2026-07-30T16:45:53Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T16:45:57Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://socket.dev",
+        "name": "high-tide",
+        "startedAt": "2026-07-30T16:45:53Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "StatusContext",
+        "context": "Vercel",
+        "startedAt": "2026-07-30T16:46:49Z",
+        "state": "SUCCESS",
+        "targetUrl": "https://vercel.com/acme/website/EueKCUV1Q6S4dw18eRPezSjwmYEG"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T16:46:50Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://vercel.com/github",
+        "name": "quiet-fern",
+        "startedAt": "2026-07-30T16:46:50Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      }
+    ],
+    "title": "Trim the empty states",
+    "updatedAt": "2026-07-30T16:46:50Z",
+    "url": "https://github.com/acme/platform/pull/444"
+  },
+  {
+    "baseRefName": "main",
+    "headRefName": "dev/eng-594-fern-water",
+    "isDraft": false,
+    "mergeStateStatus": "DIRTY",
+    "number": 442,
+    "reviewDecision": "APPROVED",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:05:42Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30564328699/job/90945007599",
+        "name": "amber-loop",
+        "startedAt": "2026-07-30T17:04:30Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:05:47Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30564328699/job/90945007327",
+        "name": "amber-loop",
+        "startedAt": "2026-07-30T17:04:31Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:21:24Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30564328699/job/90945007503",
+        "name": "grey-linden",
+        "startedAt": "2026-07-30T17:04:30Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "StatusContext",
+        "context": "CodeRabbit",
+        "startedAt": "2026-07-30T17:04:37Z",
+        "state": "SUCCESS",
+        "targetUrl": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:04:10Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://socket.dev/dashboard/org/acme/sbom/d646b441-18d2-494e-8837-4b7097a59aec",
+        "name": "north-oak",
+        "startedAt": "2026-07-30T17:04:05Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:04:11Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://socket.dev",
+        "name": "blue-harbor",
+        "startedAt": "2026-07-30T17:04:05Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "StatusContext",
+        "context": "Vercel",
+        "startedAt": "2026-07-30T17:05:02Z",
+        "state": "SUCCESS",
+        "targetUrl": "https://vercel.com/acme/website/9kTm3JFb1tVrLTRikEnN1P8EhFEL"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T17:05:03Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://vercel.com/github",
+        "name": "quiet-fern",
+        "startedAt": "2026-07-30T17:05:03Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      }
+    ],
+    "title": "Filter the requirements list",
+    "updatedAt": "2026-07-30T17:05:03Z",
+    "url": "https://github.com/acme/platform/pull/442"
+  },
+  {
+    "baseRefName": "main",
+    "headRefName": "dev/river-water",
+    "isDraft": false,
+    "mergeStateStatus": "BLOCKED",
+    "number": 438,
+    "reviewDecision": "APPROVED",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T03:57:04Z",
+        "conclusion": "SKIPPED",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30512529083/job/90775427187",
+        "name": "warm-cedar",
+        "startedAt": "2026-07-30T03:57:04Z",
+        "status": "COMPLETED",
+        "workflowName": "Claude Code"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T03:11:27Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30510495660/job/90769336383",
+        "name": "amber-loop",
+        "startedAt": "2026-07-30T03:11:19Z",
+        "status": "COMPLETED",
+        "workflowName": "Assign Reviewers"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T03:11:29Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30510495755/job/90769336716",
+        "name": "blue-harbor",
+        "startedAt": "2026-07-30T03:11:21Z",
+        "status": "COMPLETED",
+        "workflowName": "CI - Cursor Review Auto-Label"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T03:11:37Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30510509507/job/90769379568",
+        "name": "grey-linden",
+        "startedAt": "2026-07-30T03:11:31Z",
+        "status": "COMPLETED",
+        "workflowName": "CI - Cursor Review Auto-Label"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T03:11:37Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30510509672/job/90769380356",
+        "name": "quiet-fern",
+        "startedAt": "2026-07-30T03:11:31Z",
+        "status": "COMPLETED",
+        "workflowName": "CI - Cursor Review Auto-Label"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T03:05:40Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30510176065/job/90768337591",
+        "name": "still-water",
+        "startedAt": "2026-07-30T03:04:31Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T03:05:33Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30510176065/job/90768337675",
+        "name": "grey-linden",
+        "startedAt": "2026-07-30T03:04:24Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T03:20:35Z",
+        "conclusion": "FAILURE",
+        "detailsUrl": "https://github.com/acme/platform/actions/runs/30510176065/job/90768337661",
+        "name": "blue-harbor",
+        "startedAt": "2026-07-30T03:04:24Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "StatusContext",
+        "context": "CodeRabbit",
+        "startedAt": "2026-07-30T03:11:18Z",
+        "state": "SUCCESS",
+        "targetUrl": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T03:04:29Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://socket.dev/dashboard/org/acme/sbom/47306b24-3ca1-4cc2-abce-c8cba9928455",
+        "name": "open-meadow",
+        "startedAt": "2026-07-30T03:04:23Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T03:04:27Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://socket.dev",
+        "name": "grey-linden",
+        "startedAt": "2026-07-30T03:04:23Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      },
+      {
+        "__typename": "StatusContext",
+        "context": "Vercel",
+        "startedAt": "2026-07-30T03:05:17Z",
+        "state": "SUCCESS",
+        "targetUrl": "https://vercel.com/acme/website/Aks6KdYbuNe5eULCULNpjsayBd28"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-07-30T03:05:18Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://vercel.com/github",
+        "name": "slate-river",
+        "startedAt": "2026-07-30T03:05:18Z",
+        "status": "COMPLETED",
+        "workflowName": ""
+      }
+    ],
+    "title": "Paginate the audit list",
+    "updatedAt": "2026-07-30T03:57:01Z",
+    "url": "https://github.com/acme/platform/pull/438"
+  }
+]

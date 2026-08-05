@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "workspaceId": "13078e34-7a18-4710-88a8-0a4d0461d694",
+  "itemId": "itm_442",
+  "slug": "pr442-rebase",
+  "branch": "dev/eng-594-fern-water",
+  "baseBranch": "main",
+  "worktreePath": "/Users/dev/code/website",
+  "state": "building",
+  "phase": "verifying",
+  "updatedAt": "2026-07-30T18:25:40Z",
+  "summary": null,
+  "verification": {},
+  "diffstat": null,
+  "risks": [],
+  "questions": [],
+  "blockedReason": null,
+  "pr": {
+    "number": null,
+    "url": null
+  },
+  "needsOperator": false
+}

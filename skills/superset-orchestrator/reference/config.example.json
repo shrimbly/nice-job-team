@@ -1,0 +1,105 @@
+{
+  "_readme": [
+    "Copy to ~/.claude/superset-orchestrator/config.json (preflight.sh does this on first run).",
+    "The orchestrator reads this every cycle; the operator owns it. Never rewrite it without saying so.",
+    "operator.githubLogin / linearName are used for `--author @me`-equivalent filters and mention scans.",
+    "repos[]: one entry per repo you orchestrate. supersetProjectId comes from `superset projects list --json`.",
+    "repos[].reviewers: default reviewers assigned when a PR is opened. First entry is the primary.",
+    "repos[].localPath: the main clone (not a worktree) — used for branch existence and log checks.",
+    "repos[].name must be the CURRENT GitHub name. The website repo was renamed to acme/platform; `gh pr list --repo acme/website` returns [] silently instead of following the rename, so a stale name looks like 'no open PRs'. The git remote may still say website.git — that is fine for push/fetch, but not for gh.",
+    "linear.autoUpdate: the only writes to Linear allowed without asking, per cycle.",
+    "slack.channels: read-only scan targets. Empty array disables Slack polling entirely.",
+    "limits.maxActiveWorkspaces counts dispatched+building+awaiting-approval+fixing (pr-open counts as 0.5).",
+    "cadence values are seconds and feed ScheduleWakeup; the orchestrator may tighten them when CI is running.",
+    "gates: set any of these to false only if the operator explicitly asks. Defaults are deliberately cautious.",
+    "answers: standing decisions the orchestrator may relay to a blocked agent without asking again.",
+    "LAYOUT: this file and workspaces/ live at the ROOT (~/.claude/superset-orchestrator/). Per-project state lives in p/<key>/: board.json, briefs/, signals/, events.log, watch.pid.",
+    "workspaces/ is deliberately global — it is the agent status inbox, keyed by globally-unique workspace UUID, so status.sh needs no knowledge of projects.",
+    "repos[].key names the per-project directory. Omit it and it is derived from the repo name (acme/platform -> acme-platform).",
+    "Select a project with SUPERSET_ORCH_PROJECT=<key>. With exactly one repo configured it is assumed. With more than one, the scripts refuse rather than guess.",
+    "limits.maxActiveWorkspaces is GLOBAL across every project, not per project. Each workspace is a full checkout plus an agent session, so memory runs out before the number does.",
+    "watch.sh --start --all starts one poller per configured project. Separate processes, so one hung cycle cannot stop the others."
+  ],
+  "operator": {
+    "githubLogin": "your-github-login",
+    "linearName": "Your Name",
+    "linearWorkspace": "acme",
+    "timezone": "Etc/UTC"
+  },
+  "repos": [
+    {
+      "name": "acme/platform",
+      "supersetProjectId": "00000000-0000-0000-0000-000000000000",
+      "localPath": "/Users/you/code/platform",
+      "defaultBase": "main",
+      "reviewers": [],
+      "linearTeams": [
+        "Engineering"
+      ],
+      "prTemplate": ".github/pull_request_template.md",
+      "checks": {
+        "test": "npm run test:unit",
+        "lint": "npm run lint",
+        "typecheck": "npx nuxi typecheck",
+        "dev": "npm run dev"
+      },
+      "key": "acme-platform"
+    }
+  ],
+  "linear": {
+    "teams": [
+      "Engineering"
+    ],
+    "statesToConsider": [
+      "Todo",
+      "In Progress"
+    ],
+    "lookback": "-P3D",
+    "autoUpdate": {
+      "attachPrLink": true,
+      "moveToInReview": false,
+      "moveToDoneOnMerge": false,
+      "comment": false
+    }
+  },
+  "slack": {
+    "channels": [],
+    "lookbackHours": 24,
+    "pollEveryNCycles": 3,
+    "post": false
+  },
+  "superset": {
+    "host": "local",
+    "agent": "claude",
+    "effort": null,
+    "useTasks": true,
+    "linkWorkspaceToTask": true
+  },
+  "limits": {
+    "maxActiveWorkspaces": 15,
+    "maxProposalsPerRound": 5,
+    "maxStackDepth": 3,
+    "stallMinutes": 45
+  },
+  "cadence": {
+    "idleSeconds": 1500,
+    "activeSeconds": 600,
+    "ciRunningSeconds": 300
+  },
+  "gates": {
+    "approveBeforeDispatch": true,
+    "approveBeforePrSubmission": true,
+    "approveBeforeWorkspaceDelete": true,
+    "approveBeforeExternalWrites": true
+  },
+  "answers": {
+    "commitStyle": "Conventional-ish, lowercase scope: `polish(runs): …`, `feat(runs): …`",
+    "prBodyStyle": "What changed, why, how it was verified, screenshots for anything visual.",
+    "neverTouch": [
+      "services/firebaseService.ts auth flow",
+      "middleware/admin.global.ts",
+      ".env*"
+    ],
+    "visualIntent": "The operator's screenshots are the source of truth. If none exist for this item, ask."
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "data": {
+    "rateLimit": {
+      "remaining": 4865
+    },
+    "r0": {
+      "p438": {
+        "number": 438,
+        "reviewThreads": {
+          "nodes": []
+        },
+        "comments": {
+          "nodes": [
+            {
+              "body": "Automated review: no blocking issues found in this diff.\n\n[Preview](https://website-git-dev-river-water-acme.vercel.app)"
+            },
+            {
+              "body": "Deployment ready. Preview is available for this commit."
+            },
+            {
+              "body": "Deployment ready. Preview is available for this commit."
+            },
+            {
+              "body": "Confirmed against the preview, the empty state renders correctly now."
+            }
+          ]
+        }
+      },
+      "p442": {
+        "number": 442,
+        "reviewThreads": {
+          "nodes": []
+        },
+        "comments": {
+          "nodes": [
+            {
+              "body": "Could this move into the helper so the two call sites agree?"
+            },
+            {
+              "body": "Automated review: no blocking issues found in this diff.\n\n[Preview](https://website-git-dev-eng-594-fern-water-acme.vercel.app)"
+            },
+            {
+              "body": "Confirmed against the preview, the empty state renders correctly now."
+            },
+            {
+              "body": "Could this move into the helper so the two call sites agree?"
+            }
+          ]
+        }
+      },
+      "p444": {
+        "number": 444,
+        "reviewThreads": {
+          "nodes": []
+        },
+        "comments": {
+          "nodes": [
+            {
+              "body": "Automated review: no blocking issues found in this diff."
+            },
+            {
+              "body": "This branch is behind main — rebase before merging.\n\n[Preview](https://website-git-dev-eng-597-stone-fern-acme.vercel.app)"
+            },
+            {
+              "body": "This branch is behind main — rebase before merging."
+            },
+            {
+              "body": "Deployment ready. Preview is available for this commit."
+            },
+            {
+              "body": "Could this move into the helper so the two call sites agree?"
+            }
+          ]
+        }
+      },
+      "p466": {
+        "number": 466,
+        "reviewThreads": {
+          "nodes": []
+        },
+        "comments": {
+          "nodes": [
+            {
+              "body": "Looks good. One thought on the naming here, otherwise ship it.\n\n[Preview](https://website-git-dev-eng-595-tide-north-acme.vercel.app)"
+            },
+            {
+              "body": "This branch is behind main — rebase before merging."
+            },
+            {
+              "body": "Confirmed against the preview, the empty state renders correctly now."
+            }
+          ]
+        }
+      },
+      "p467": {
+        "number": 467,
+        "reviewThreads": {
+          "nodes": []
+        },
+        "comments": {
+          "nodes": [
+            {
+              "body": "Nit: the guard reads clearer as an early return."
+            },
+            {
+              "body": "Automated review: no blocking issues found in this diff.\n\n[Preview](https://website-git-dev-eng-584-loop-north-acme.vercel.app)"
+            },
+            {
+              "body": "Deployment ready. Preview is available for this commit."
+            }
+          ]
+        }
+      }
+    }
+  }
+}

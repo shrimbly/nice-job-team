@@ -1,0 +1,461 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-30T18:25:21Z",
+  "items": [
+    {
+      "id": "itm_444",
+      "slug": "pr444-body",
+      "title": "Collapse the advanced section",
+      "domain": "run-history",
+      "state": "fixing",
+      "priority": "medium",
+      "source": {
+        "kind": "linear",
+        "externalId": "ENG-597"
+      },
+      "outcome": "The action names what it does, so nobody has to guess.",
+      "repo": "acme/platform",
+      "branch": "dev/eng-597-stone-fern",
+      "baseBranch": "main",
+      "blockedBy": null,
+      "stackParent": null,
+      "workspaceId": "5ad080be-883c-4861-963f-408ae699b43d",
+      "supersetTaskId": null,
+      "briefPath": "/Users/dev/.claude/superset-orchestrator/briefs/pr444-rebase.md",
+      "pr": {
+        "number": 444,
+        "url": "https://github.com/acme/platform/pull/444",
+        "reviewers": [],
+        "reviewDecision": "",
+        "unresolvedThreads": 0,
+        "ciState": "green",
+        "isDraft": false,
+        "mergeStateStatus": "CLEAN",
+        "lastSeenActivityAt": null
+      },
+      "history": [
+        {
+          "at": "2026-07-30T16:05:46Z",
+          "from": null,
+          "to": "pr-open",
+          "by": "sensed"
+        },
+        {
+          "at": "2026-07-30T16:25:26Z",
+          "from": "pr-open",
+          "to": "fixing"
+        },
+        {
+          "at": "2026-07-30T16:50:04Z",
+          "from": "fixing",
+          "to": "pr-open",
+          "by": "agent status"
+        },
+        {
+          "at": "2026-07-30T18:19:05Z",
+          "from": "pr-open",
+          "to": "fixing"
+        }
+      ]
+    },
+    {
+      "id": "itm_442",
+      "slug": "pr442-rebase",
+      "title": "Warn before a destructive save",
+      "domain": "audit-log",
+      "state": "fixing",
+      "priority": "medium",
+      "source": {
+        "kind": "linear",
+        "externalId": "ENG-594"
+      },
+      "outcome": "The action names what it does, so nobody has to guess.",
+      "repo": "acme/platform",
+      "branch": "dev/eng-594-fern-water",
+      "baseBranch": "main",
+      "blockedBy": null,
+      "stackParent": null,
+      "workspaceId": "13078e34-7a18-4710-88a8-0a4d0461d694",
+      "supersetTaskId": null,
+      "briefPath": "/Users/dev/.claude/superset-orchestrator/briefs/pr442-rebase.md",
+      "pr": {
+        "number": 442,
+        "url": "https://github.com/acme/platform/pull/442",
+        "reviewers": [],
+        "reviewDecision": "REVIEW_REQUIRED",
+        "unresolvedThreads": 0,
+        "ciState": "green",
+        "isDraft": false,
+        "mergeStateStatus": "BLOCKED",
+        "lastSeenActivityAt": null
+      },
+      "history": [
+        {
+          "at": "2026-07-30T16:05:46Z",
+          "from": null,
+          "to": "pr-open",
+          "by": "sensed"
+        },
+        {
+          "at": "2026-07-30T18:25:21Z",
+          "from": "pr-open",
+          "to": "fixing"
+        }
+      ]
+    },
+    {
+      "id": "itm_441",
+      "slug": "pr441-drop-legacy-flag",
+      "title": "Widen the log column",
+      "domain": "run-history",
+      "state": "closed",
+      "priority": "medium",
+      "source": {
+        "kind": "linear",
+        "externalId": "ENG-597"
+      },
+      "outcome": "The action names what it does, so nobody has to guess.",
+      "repo": "acme/platform",
+      "branch": "dev/eng-597-stone-ridge",
+      "baseBranch": "main",
+      "blockedBy": null,
+      "stackParent": null,
+      "workspaceId": null,
+      "supersetTaskId": null,
+      "briefPath": null,
+      "pr": {
+        "number": 441,
+        "url": "https://github.com/acme/platform/pull/441",
+        "reviewers": [],
+        "reviewDecision": "REVIEW_REQUIRED",
+        "unresolvedThreads": 0,
+        "ciState": "green",
+        "isDraft": true,
+        "mergeStateStatus": "BLOCKED",
+        "lastSeenActivityAt": null
+      },
+      "history": [
+        {
+          "at": "2026-07-30T16:05:46Z",
+          "from": null,
+          "to": "pr-open",
+          "by": "sensed"
+        },
+        {
+          "at": "2026-07-30T16:32:37Z",
+          "from": "pr-open",
+          "to": "closed",
+          "by": "sensed: PR closed"
+        }
+      ]
+    },
+    {
+      "id": "itm_440",
+      "slug": "pr440-presets-copy",
+      "title": "Filter the requirements list",
+      "domain": "audit-log",
+      "state": "closed",
+      "priority": "medium",
+      "source": {
+        "kind": "linear",
+        "externalId": "ENG-595"
+      },
+      "outcome": "The list stays readable when a run has hundreds of steps.",
+      "repo": "acme/platform",
+      "branch": "dev/eng-595-river-field",
+      "baseBranch": "main",
+      "blockedBy": null,
+      "stackParent": null,
+      "workspaceId": null,
+      "supersetTaskId": null,
+      "briefPath": null,
+      "pr": {
+        "number": 440,
+        "url": "https://github.com/acme/platform/pull/440",
+        "reviewers": [],
+        "reviewDecision": "REVIEW_REQUIRED",
+        "unresolvedThreads": 0,
+        "ciState": "running",
+        "isDraft": true,
+        "mergeStateStatus": "BLOCKED",
+        "lastSeenActivityAt": null
+      },
+      "history": [
+        {
+          "at": "2026-07-30T16:05:46Z",
+          "from": null,
+          "to": "pr-open",
+          "by": "sensed"
+        },
+        {
+          "at": "2026-07-30T16:32:37Z",
+          "from": "pr-open",
+          "to": "closed",
+          "by": "sensed: PR closed"
+        }
+      ]
+    },
+    {
+      "id": "itm_439",
+      "slug": "pr439-presets-column",
+      "title": "Warn before a destructive save",
+      "domain": "presets",
+      "state": "closed",
+      "priority": "medium",
+      "source": {
+        "kind": "linear",
+        "externalId": "ENG-600"
+      },
+      "outcome": "The action names what it does, so nobody has to guess.",
+      "repo": "acme/platform",
+      "branch": "dev/eng-600-field-north",
+      "baseBranch": "main",
+      "blockedBy": null,
+      "stackParent": null,
+      "workspaceId": null,
+      "supersetTaskId": null,
+      "briefPath": null,
+      "pr": {
+        "number": 439,
+        "url": "https://github.com/acme/platform/pull/439",
+        "reviewers": [],
+        "reviewDecision": "REVIEW_REQUIRED",
+        "unresolvedThreads": 0,
+        "ciState": "green",
+        "isDraft": false,
+        "mergeStateStatus": "BLOCKED",
+        "lastSeenActivityAt": null
+      },
+      "history": [
+        {
+          "at": "2026-07-30T16:05:46Z",
+          "from": null,
+          "to": "pr-open",
+          "by": "sensed"
+        },
+        {
+          "at": "2026-07-30T16:32:37Z",
+          "from": "pr-open",
+          "to": "closed",
+          "by": "sensed: PR closed"
+        }
+      ]
+    },
+    {
+      "id": "itm_438",
+      "slug": "pr438-ci-fix",
+      "title": "Batch the status writes",
+      "domain": "run-history",
+      "state": "building",
+      "priority": "high",
+      "source": {
+        "kind": "github",
+        "externalId": "#438"
+      },
+      "outcome": "A user can reach the setting without opening the console.",
+      "repo": "acme/platform",
+      "branch": "dev/river-water",
+      "baseBranch": "main",
+      "blockedBy": null,
+      "stackParent": null,
+      "workspaceId": "4a99f362-fb6f-441c-838d-4b3fe92331e3",
+      "supersetTaskId": null,
+      "briefPath": "/Users/dev/.claude/superset-orchestrator/briefs/pr438-ci-fix.md",
+      "pr": {
+        "number": 438,
+        "url": "https://github.com/acme/platform/pull/438",
+        "reviewers": [],
+        "reviewDecision": "APPROVED",
+        "unresolvedThreads": 0,
+        "ciState": "red",
+        "isDraft": false,
+        "mergeStateStatus": "BLOCKED",
+        "lastSeenActivityAt": "2026-07-30T03:57:01Z"
+      },
+      "history": [
+        {
+          "at": "2026-07-30T16:05:46Z",
+          "from": null,
+          "to": "pr-open",
+          "by": "sensed"
+        },
+        {
+          "at": "2026-07-30T16:19:33Z",
+          "from": "pr-open",
+          "to": "fixing"
+        },
+        {
+          "at": "2026-07-30T16:50:04Z",
+          "from": "fixing",
+          "to": "building",
+          "by": "agent status"
+        }
+      ]
+    },
+    {
+      "id": "itm_391",
+      "slug": "pr391-rebase",
+      "title": "Split the settings panel",
+      "domain": "settings-ui",
+      "state": "closed",
+      "priority": "high",
+      "source": {
+        "kind": "github",
+        "externalId": "#391"
+      },
+      "outcome": "The empty case says what to do next instead of nothing at all.",
+      "repo": "acme/platform",
+      "branch": "dev/loop-field",
+      "baseBranch": "main",
+      "blockedBy": null,
+      "stackParent": null,
+      "workspaceId": "11322982-ddb6-4fda-9602-1f4df2fa8f76",
+      "supersetTaskId": null,
+      "briefPath": "/Users/dev/.claude/superset-orchestrator/briefs/pr391-rebase.md",
+      "pr": {
+        "number": 391,
+        "url": "https://github.com/acme/platform/pull/391",
+        "reviewers": [],
+        "reviewDecision": "APPROVED",
+        "unresolvedThreads": 0,
+        "ciState": "green",
+        "isDraft": false,
+        "mergeStateStatus": "DIRTY",
+        "lastSeenActivityAt": "2026-07-30T03:54:36Z"
+      },
+      "history": [
+        {
+          "at": "2026-07-30T16:05:46Z",
+          "from": null,
+          "to": "pr-open",
+          "by": "sensed"
+        },
+        {
+          "at": "2026-07-30T16:19:32Z",
+          "from": "pr-open",
+          "to": "fixing"
+        },
+        {
+          "at": "2026-07-30T16:50:04Z",
+          "from": "fixing",
+          "to": "awaiting-approval",
+          "by": "agent status"
+        },
+        {
+          "at": "2026-07-30T18:15:43Z",
+          "from": "awaiting-approval",
+          "to": "merged",
+          "by": "sensed: PR merged"
+        },
+        {
+          "at": "2026-07-30T18:18:15Z",
+          "from": "merged",
+          "to": "closed"
+        }
+      ]
+    },
+    {
+      "id": "itm_466",
+      "slug": "pr466-upload-step-copy",
+      "title": "Retry the upload once",
+      "domain": "run-history",
+      "state": "pr-open",
+      "priority": "medium",
+      "source": {
+        "kind": "linear",
+        "externalId": "ENG-595"
+      },
+      "outcome": "A user can reach the setting without opening the console.",
+      "repo": "acme/platform",
+      "branch": "dev/eng-595-tide-north",
+      "baseBranch": "main",
+      "blockedBy": null,
+      "stackParent": null,
+      "workspaceId": "26d0b203-89b6-4d8a-b721-bb547d3b3df2",
+      "supersetTaskId": null,
+      "briefPath": null,
+      "pr": {
+        "number": 466,
+        "url": "https://github.com/acme/platform/pull/466",
+        "reviewers": [],
+        "reviewDecision": "REVIEW_REQUIRED",
+        "unresolvedThreads": 0,
+        "ciState": "unknown",
+        "isDraft": true,
+        "mergeStateStatus": "BLOCKED",
+        "lastSeenActivityAt": null
+      },
+      "history": [
+        {
+          "at": "2026-07-30T16:32:37Z",
+          "from": null,
+          "to": "pr-open",
+          "by": "sensed"
+        }
+      ]
+    },
+    {
+      "id": "itm_board",
+      "slug": "board-app",
+      "title": "Cache the region lookup",
+      "domain": "account",
+      "state": "dispatched",
+      "priority": "medium",
+      "source": {
+        "kind": "operator",
+        "externalId": null
+      },
+      "outcome": "A user can reach the setting without opening the console.",
+      "repo": "local:~/code/toolkit",
+      "branch": "build/stone-meadow",
+      "baseBranch": "main",
+      "blockedBy": null,
+      "stackParent": null,
+      "workspaceId": "9f918c19-0e55-4a17-9179-7f2dc95135f4",
+      "supersetTaskId": null,
+      "briefPath": "/Users/dev/.claude/superset-orchestrator/briefs/board-app.md",
+      "pr": null,
+      "history": [
+        {
+          "at": "2026-07-30T18:13:27Z",
+          "from": null,
+          "to": "dispatched",
+          "by": "operator request"
+        }
+      ]
+    },
+    {
+      "id": "itm_467",
+      "slug": "pr467",
+      "title": "Collapse the advanced section",
+      "domain": "settings-ui",
+      "state": "rejected",
+      "priority": "medium",
+      "source": {
+        "kind": "github",
+        "externalId": "#467"
+      },
+      "outcome": "The list stays readable when a run has hundreds of steps.",
+      "repo": "acme/platform",
+      "branch": "",
+      "baseBranch": "main",
+      "blockedBy": null,
+      "stackParent": null,
+      "workspaceId": null,
+      "supersetTaskId": null,
+      "briefPath": null,
+      "pr": {
+        "number": 467,
+        "url": "https://github.com/acme/platform/pull/467"
+      },
+      "history": [
+        {
+          "at": "2026-07-30T18:15:43Z",
+          "from": null,
+          "to": "pr-open",
+          "by": "sensed"
+        }
+      ]
+    }
+  ]
+}
