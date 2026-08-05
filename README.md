@@ -19,20 +19,8 @@ next session reads the same file.
 
 This workflow ran up to eight agents at the same time on a real product.
 
-```
-┌──────────────────────────────────────────────────┐
-│ NEEDS YOU   ● north-oak   PR-102   ◆  ⬤          │
-│ Batch the status writes                        ⌄ │
-├──────────────────────────────────────────────────┤
-│ IN REVIEW   ● blue-harbor PR-101   ◆  ⬤          │
-│ Add the export button                          ⌄ │
-├──────────────────────────────────────────────────┤
-│ DRAFT       ● quiet-fern  PR-99    ◆  ⬤          │
-│ Paginate the audit list                        ⌄ │
-├──────────────────────────────────────────────────┤
-│ polled just now                   Refresh   Quit │
-└──────────────────────────────────────────────────┘
-```
+<img width="1003" height="636" alt="image" src="https://github.com/user-attachments/assets/df45e733-0ba0-40bd-a1ac-0fc51902fecc" />
+
 
 ## What is in this repository
 
