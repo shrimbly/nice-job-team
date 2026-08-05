@@ -39,8 +39,7 @@ This workflow ran up to eight agents at the same time on a real product.
 | Directory | Contents |
 |---|---|
 | `docs/` | The model, the two agent contracts, and the reason for each guard |
-| `skills/` | The two agent skills and the scripts that run the loop |
-| `agents/` | The scout, a read-only subagent that the orchestrator sends out |
+| `skills/` | The three skills, the scripts that run the loop, and the scout |
 | `Sources/`, `Tests/` | The menu bar app, in Swift, with no dependencies |
 
 Read [docs/workflow.md](docs/workflow.md) first. Before you change a script, read
@@ -76,42 +75,41 @@ it prevents.
    superset auth whoami      # confirm the session
    ```
 
-2. Clone this repository.
+2. Install the three skills, for every agent you use.
 
    ```bash
-   git clone https://github.com/shrimbly/nice-job-team.git
-   cd nice-job-team
+   npx skills add shrimbly/nice-job-team --all -g
    ```
 
-3. Copy the skills and the scout into your Claude directory.
+   `-g` puts them in `~/.claude/skills/`, so they work in every repository.
+   Leave it out to install into the current project only. The scripts keep
+   their executable bit, and [skills.sh](https://skills.sh) installs to the
+   correct directory for each agent it finds.
+
+3. Go to the repository you want to orchestrate. Then ask your agent to set it
+   up:
+
+   > set up the orchestrator for this repo
+
+   The `superset-setup` skill reads the repository, the main clone, the base
+   branch, and your GitHub login from the checkout. It asks only for your
+   Linear workspace and your default reviewer. Then it writes
+   `~/.claude/superset-orchestrator/config.json`, installs the scout subagent,
+   and runs the preflight check.
+
+   Repeat this step in each repository you want to add. The configuration
+   merges, so a second repository does not disturb the first.
+
+4. Start the poller.
 
    ```bash
-   cp -R skills/superset-orchestrator ~/.claude/skills/
-   cp -R skills/superset-implementer  ~/.claude/skills/
-   mkdir -p ~/.claude/agents && cp agents/superset-scout.md ~/.claude/agents/
-   chmod +x ~/.claude/skills/*/scripts/*.sh
-   ```
-
-4. Write the configuration.
-
-   ```bash
-   ~/.claude/skills/superset-orchestrator/scripts/setup.sh
-   ```
-
-   `setup.sh` asks for your GitHub login, your Linear workspace, and the repository
-   to orchestrate. Then it writes `~/.claude/superset-orchestrator/config.json`. It
-   accepts a Linear URL or a workspace slug. It also resolves a renamed repository,
-   because `gh pr list` does not follow a rename. That command returns an empty
-   list, which reads the same as "no open pull requests".
-
-   To print the current configuration without a change, run `setup.sh --show`.
-
-5. Check the environment, then start the poller.
-
-   ```bash
-   ~/.claude/skills/superset-orchestrator/scripts/preflight.sh
    ~/.claude/skills/superset-orchestrator/scripts/watch.sh --start
    ```
+
+To read the configuration at any time, run
+`~/.claude/skills/superset-orchestrator/scripts/setup.sh --show`. To set a
+repository up without an agent, run that script with no arguments and answer
+the questions.
 
 ## The app
 

@@ -90,7 +90,7 @@ Each script is in `skills/superset-orchestrator/scripts/`.
 
 | Script | Job |
 |---|---|
-| `setup.sh` | ask for the configuration, then write `config.json` |
+| `setup.sh` | detect the repository, then merge it into `config.json` |
 | `preflight.sh` | test the CLI, the authentication, the host daemon, and the board directory |
 | `poll.sh` | collect pull request state, continuous integration, threads, workspaces, agent status |
 | `sync.sh` | fold what the agents and GitHub know back into the board |

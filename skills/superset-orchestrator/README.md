@@ -1,14 +1,19 @@
 # Superset orchestration — operator's guide
 
-Two skills and one subagent, built to stop a single chat from carrying six domains
+Three skills and one subagent, built to stop a single chat from carrying six domains
 of work at once.
 
 | Piece | Lives at | Runs where |
 |---|---|---|
 | `superset-orchestrator` skill | `~/.claude/skills/superset-orchestrator/` | one long-lived session, in the main clone |
 | `superset-implementer` skill | `~/.claude/skills/superset-implementer/` | inside each Superset workspace, loaded by the dispatched agent |
+| `superset-setup` skill | `~/.claude/skills/superset-setup/` | once for each repository, in that repository |
 | `superset-scout` subagent | `~/.claude/agents/superset-scout.md` | spawned by the orchestrator, read-only, returns JSON |
 | board + state | `~/.claude/superset-orchestrator/` | on disk, shared by both |
+
+Install all three with `npx skills add shrimbly/nice-job-team --all -g`. The scout
+ships inside this skill, at `agents/superset-scout.md`, because skills.sh installs
+skills and not subagents. `scripts/setup.sh` puts it in place.
 
 ## How the two halves talk
 
