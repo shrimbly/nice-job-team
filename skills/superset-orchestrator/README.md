@@ -11,7 +11,8 @@ of work at once.
 | `superset-scout` subagent | `~/.claude/agents/superset-scout.md` | spawned by the orchestrator, read-only, returns JSON |
 | board + state | `~/.claude/superset-orchestrator/` | on disk, shared by both |
 
-Install all three with `npx skills add shrimbly/nice-job-team --all -g`. The scout
+Install all three with
+`npx skills add shrimbly/nice-job-team --skill '*' --agent claude-code -g -y`. The scout
 ships inside this skill, at `agents/superset-scout.md`, because skills.sh installs
 skills and not subagents. `scripts/setup.sh` puts it in place.
 

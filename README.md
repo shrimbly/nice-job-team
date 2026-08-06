@@ -63,16 +63,24 @@ it prevents.
    superset auth whoami      # confirm the session
    ```
 
-2. Install the three skills, for every agent you use.
+2. Install the three skills.
 
    ```bash
-   npx skills add shrimbly/nice-job-team --all -g
+   npx skills add shrimbly/nice-job-team --skill '*' --agent claude-code -g -y
    ```
 
    `-g` puts them in `~/.claude/skills/`, so they work in every repository.
    Leave it out to install into the current project only. The scripts keep
-   their executable bit, and [skills.sh](https://skills.sh) installs to the
-   correct directory for each agent it finds.
+   their executable bit, so no `chmod` step is necessary.
+
+   To install for every agent on the machine, use `--all` in place of the two
+   flags. [skills.sh](https://skills.sh) supports more than 70 agents and finds
+   the correct directory for each one.
+
+   NOTE: Some agents accept a project skill and refuse a global one. With
+   `--all -g`, each of those agents reports `<agent> does not support global
+   skill installation`, once for each skill. The other agents still install.
+   To silence the report, name the agents you want, as above.
 
 3. Go to the repository you want to orchestrate. Then ask your agent to set it
    up:

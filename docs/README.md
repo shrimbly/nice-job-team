@@ -45,7 +45,7 @@ You need the Superset CLI, the GitHub CLI, `jq`, and an issue tracker.
 1. Install the skills.
 
    ```bash
-   npx skills add shrimbly/nice-job-team --all -g
+   npx skills add shrimbly/nice-job-team --skill '*' --agent claude-code -g -y
    ```
 
 2. Log in to the Superset CLI. The login is a browser flow, so you must run it yourself.
