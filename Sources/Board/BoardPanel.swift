@@ -113,12 +113,13 @@ struct BoardPanel: View {
                     // board is tens of cards, not thousands; there was nothing to be
                     // saved by building them late.
                     VStack(spacing: Self.cardSpacing) {
-                        ForEach(Array(store.cards.enumerated()), id: \.element.id) { index, card in
+                        ForEach(Array(store.cards.enumerated()), id: \.element.id) { index, entry in
                             CardRow(
-                                card: card,
+                                card: entry.card,
+                                project: store.showsProjects ? entry.shortName : nil,
                                 pillWidth: pillWidth,
-                                isExpanded: expanded.contains(card.id),
-                                toggle: { toggle(card.id) },
+                                isExpanded: expanded.contains(entry.id),
+                                toggle: { toggle(entry.id) },
                                 open: openLink,
                                 copied: showCopied)
                                 // Each card resolves out of a blur a beat after the
@@ -221,7 +222,7 @@ struct BoardPanel: View {
     /// Computed here rather than in the card, because it is a property of the board
     /// as a whole — every pill has to agree on it for the column to be a column.
     private var pillWidth: CGFloat {
-        PillColumn.width(for: store.cards)
+        PillColumn.width(for: store.cards.map(\.card))
     }
 
     /// Nothing has been opened or shut yet this launch, so what was stored still

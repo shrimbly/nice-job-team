@@ -106,6 +106,11 @@ public struct OrchestratorSnapshot: Sendable {
     public static let absent = OrchestratorSnapshot(
         items: [], agents: [], workspaces: [], mergedPRNumbers: [], isPresent: false)
 
+    /// The directory is there and holds no project yet. Distinct from `absent`,
+    /// which means no orchestrator at all and sends the app to GitHub alone.
+    public static let empty = OrchestratorSnapshot(
+        items: [], agents: [], workspaces: [], mergedPRNumbers: [], isPresent: true)
+
     public init(
         items: [BoardItem], agents: [AgentStatus], workspaces: [WorkspaceRef],
         mergedPRNumbers: Set<Int> = [], isPresent: Bool
@@ -143,32 +148,36 @@ public struct OrchestratorReader: Sendable {
     /// So the reader needs both: this for the board and the signals, `root` for
     /// the inbox.
     ///
-    /// Order: an explicit key, then a board at the root (the old single-project
-    /// layout, still valid), then the only project under `p/`, then the most
-    /// recently written one.
-    public var projectRoot: URL {
+    /// Every project the app should show, in a stable order.
+    ///
+    /// This used to return one project, falling back to the most recently written
+    /// board. That fallback was silent and it could not be won: whichever project
+    /// polls most often always writes last, so a second project became invisible
+    /// with nothing on screen to say so. The board answers "what is every agent
+    /// doing", and one project out of two is a wrong answer, not a partial one.
+    ///
+    /// An explicit key still selects one project, because narrowing on purpose is
+    /// different from guessing. Both spellings are accepted — the scripts have
+    /// always read `SUPERSET_ORCH_PROJECT`, and only this app ever read the other.
+    public var projects: [ProjectRef] {
         let fm = FileManager.default
-        let projects = root.appendingPathComponent("p")
+        let container = root.appendingPathComponent("p")
+        let environment = ProcessInfo.processInfo.environment
 
-        if let key = ProcessInfo.processInfo.environment["BOARD_ORCHESTRATOR_PROJECT"],
+        if let key = environment["BOARD_ORCHESTRATOR_PROJECT"] ?? environment["SUPERSET_ORCH_PROJECT"],
            !key.isEmpty {
-            return projects.appendingPathComponent(key)
+            return [ProjectRef(key: key, root: container.appendingPathComponent(key))]
         }
+        // The single-project layout, from before `p/<key>/` existed.
         if fm.fileExists(atPath: root.appendingPathComponent("board.json").path) {
-            return root
+            return [ProjectRef(key: "", root: root)]
         }
-        guard let keys = try? fm.contentsOfDirectory(atPath: projects.path),
-              !keys.isEmpty else { return root }
-        if keys.count == 1 { return projects.appendingPathComponent(keys[0]) }
-
-        let newest = keys
-            .map { projects.appendingPathComponent($0) }
-            .max { a, b in
-                let da = (try? fm.attributesOfItem(atPath: a.appendingPathComponent("board.json").path)[.modificationDate] as? Date) ?? nil
-                let db = (try? fm.attributesOfItem(atPath: b.appendingPathComponent("board.json").path)[.modificationDate] as? Date) ?? nil
-                return (da ?? .distantPast) < (db ?? .distantPast)
-            }
-        return newest ?? root
+        let keys = (try? fm.contentsOfDirectory(atPath: container.path)) ?? []
+        return keys.sorted()
+            .map { ProjectRef(key: $0, root: container.appendingPathComponent($0)) }
+            // A directory with no board is a project that never polled. Skipping it
+            // keeps an empty `p/<key>/` from showing as a project with no work.
+            .filter { fm.fileExists(atPath: $0.root.appendingPathComponent("board.json").path) }
     }
 
     public init(root: URL = OrchestratorReader.defaultRoot) {
@@ -181,11 +190,17 @@ public struct OrchestratorReader: Sendable {
         return ok && isDir.boolValue
     }
 
+    /// The first project, for a caller that wants one board and does not care which.
     public func read() -> OrchestratorSnapshot {
+        guard let first = projects.first else { return directoryExists ? .empty : .absent }
+        return read(first)
+    }
+
+    public func read(_ project: ProjectRef) -> OrchestratorSnapshot {
         guard directoryExists else { return .absent }
 
-        let board = decode(BoardItemsFile.self, from: projectRoot.appendingPathComponent("board.json"))
-        let workspaces = decode(WorkspacesSignal.self, from: projectRoot.appendingPathComponent("signals/workspaces.json"))
+        let board = decode(BoardItemsFile.self, from: project.root.appendingPathComponent("board.json"))
+        let workspaces = decode(WorkspacesSignal.self, from: project.root.appendingPathComponent("signals/workspaces.json"))
 
         // The agent's own file is the source of truth for state/phase/summary; the
         // signal file adds liveness and dirt that only poll.sh can see. Merge rather
@@ -205,15 +220,15 @@ public struct OrchestratorReader: Sendable {
             items: board?.items ?? [],
             agents: agents,
             workspaces: workspaces?.workspaces ?? [],
-            mergedPRNumbers: readMergedPRNumbers(),
+            mergedPRNumbers: readMergedPRNumbers(in: project),
             isPresent: true)
     }
 
     /// poll.sh collects `--state merged` alongside the open PRs and nothing has
     /// ever read it. It is the cheapest way to know a PR landed: already on disk,
     /// no GitHub call of our own.
-    private func readMergedPRNumbers() -> Set<Int> {
-        let url = projectRoot.appendingPathComponent("signals/github.json")
+    private func readMergedPRNumbers(in project: ProjectRef) -> Set<Int> {
+        let url = project.root.appendingPathComponent("signals/github.json")
         guard let data = try? Data(contentsOf: url) else { return [] }
         return (try? GitHubDecoder.mergedNumbers(fromSignals: data)) ?? []
     }

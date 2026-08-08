@@ -7,7 +7,10 @@ import Observation
 @MainActor
 @Observable
 final class BoardStore {
-    private(set) var cards: [Card] = []
+    private(set) var cards: [ProjectCard] = []
+    /// True once a second project appears, so the chip only shows when it means
+    /// something. One project makes the same label on every card.
+    private(set) var showsProjects = false
     private(set) var lastUpdated: Date?
     private(set) var lastError: String?
     private(set) var isRefreshing = false
@@ -16,7 +19,7 @@ final class BoardStore {
     /// True while the board is GitHub's alone, so the panel can say so.
     private(set) var usingStalePullRequests = false
 
-    var needsOperatorCount: Int { cards.count { $0.pill.tone.needsOperator } }
+    var needsOperatorCount: Int { cards.count { $0.card.pill.tone.needsOperator } }
 
     static let schedule = RefreshSchedule.standard
     static var interval: TimeInterval { schedule.interval }
@@ -97,9 +100,12 @@ final class BoardStore {
         defer { isRefreshing = false }
 
         let reader = self.reader
-        let snapshot = await Task.detached { reader.read() }.value
-        orchestratorPresent = snapshot.isPresent
-        if snapshot.isPresent {
+        let projects = await Task.detached {
+            reader.projects.map { (project: $0, snapshot: reader.read($0)) }
+        }.value
+        orchestratorPresent = reader.directoryExists && !projects.isEmpty
+        showsProjects = projects.count > 1
+        if orchestratorPresent {
             config = BoardConfig.load(from: reader.root)
             if watcher == nil { startWatching() }
         }
@@ -124,10 +130,13 @@ final class BoardStore {
             }
         }
 
+        // With no orchestrator on disk the app still has a job: every open PR gets
+        // a card. One absent project keeps that path identical to the old one.
+        let sources = projects.isEmpty
+            ? [(project: ProjectRef(key: "", root: reader.root), snapshot: OrchestratorSnapshot.absent)]
+            : projects
         cards = BoardAssembler.cards(
-            orchestrator: snapshot,
-            pullRequests: pullRequests,
-            linearWorkspace: config.linearWorkspace)
+            projects: sources, pullRequests: pullRequests, config: config)
         lastUpdated = Date()
     }
 
@@ -136,21 +145,29 @@ final class BoardStore {
     private func reloadOrchestratorOnly() async {
         guard !isRefreshing else { return }
         let reader = self.reader
-        let snapshot = await Task.detached { reader.read() }.value
-        orchestratorPresent = snapshot.isPresent
+        let projects = await Task.detached {
+            reader.projects.map { (project: $0, snapshot: reader.read($0)) }
+        }.value
+        orchestratorPresent = reader.directoryExists && !projects.isEmpty
+        showsProjects = projects.count > 1
+        guard !projects.isEmpty else { return }
         cards = BoardAssembler.cards(
-            orchestrator: snapshot,
-            pullRequests: pullRequests,
-            linearWorkspace: config.linearWorkspace)
+            projects: projects, pullRequests: pullRequests, config: config)
     }
 
+    /// Every project's last poll, joined. The signals live in `p/<key>/`, so this
+    /// reads nothing at the root — and the fallback that keeps a GitHub outage
+    /// from quietly emptying the board would stop working.
     private func lastPolledPullRequests() -> [PullRequest]? {
-        // projectRoot, not root: the signals moved into p/<key>/ with the board. At
-        // the root this reads nothing, and the fallback that exists so a GitHub
-        // outage does not empty the board quietly stops working.
-        let url = reader.projectRoot.appendingPathComponent("signals/github.json")
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? GitHubDecoder.pullRequests(fromSignals: data)
+        var all: [PullRequest] = []
+        var seen = Set<Int>()
+        for project in reader.projects {
+            let url = project.root.appendingPathComponent("signals/github.json")
+            guard let data = try? Data(contentsOf: url),
+                  let prs = try? GitHubDecoder.pullRequests(fromSignals: data) else { continue }
+            for pr in prs where seen.insert(pr.number).inserted { all.append(pr) }
+        }
+        return all.isEmpty ? nil : all
     }
 
     private func startWatching() {

@@ -7,6 +7,9 @@ import SwiftUI
 /// however many chips the card happens to carry.
 struct CardRow: View {
     let card: Card
+    /// Which project this card came from, or nil when only one is running and the
+    /// same label on every card would say nothing.
+    var project: String? = nil
     /// One width for every pill on the board — see `PillColumn`.
     let pillWidth: CGFloat
     let isExpanded: Bool
@@ -75,6 +78,10 @@ struct CardRow: View {
             HStack(spacing: 6) {
                 pill
                 links
+                if project != nil {
+                    Spacer(minLength: 6)
+                    projectChip
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -93,6 +100,22 @@ struct CardRow: View {
     /// the expansion below is text, not a target.
     private var hoverTint: Color {
         Palette.ink.opacity(isHovering ? 0.06 : 0)
+    }
+
+    /// Quiet on purpose. The status pill is the loud thing on this row, and a
+    /// second filled badge beside it would compete for the same glance. This sits
+    /// at the far edge and answers "whose board is this" only when asked.
+    @ViewBuilder private var projectChip: some View {
+        if let project {
+            Text(project)
+                .font(Typography.label)
+                .foregroundStyle(Palette.faint)
+                .lineLimit(1)
+                .padding(.horizontal, 5)
+                .frame(height: Metrics.strip)
+                .background(Palette.rule.opacity(0.6), in: RoundedRectangle.squircle(5))
+                .help("project: \(project)")
+        }
     }
 
     private var pill: some View {

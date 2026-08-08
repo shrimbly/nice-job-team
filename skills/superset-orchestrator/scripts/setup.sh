@@ -11,6 +11,7 @@
 # --apply flags, all optional except --repo:
 #   --repo owner/name  --path DIR  --base BRANCH  --operator LOGIN  --name NAME
 #   --linear SLUG|URL  --timezone TZ  --reviewer LOGIN  --superset-project ID
+#   --short-name LABEL
 #   --no-scout
 #
 # Adding a second repository keeps the first. Everything merges into the
@@ -106,9 +107,18 @@ install_scout() {
 # One repo at a time, merged. An existing entry keeps any field this run does
 # not set, and the other repos are not touched.
 write_config() { # write_config <json of {operator, repo}>
-  local incoming="$1" key repo tmp backup
+  local incoming="$1" key repo tmp backup existing_key
   repo="$(printf '%s' "$incoming" | jq -r '.repo.name')"
-  key="$(repo_key "$repo")"
+
+  # An existing key wins over the derivation. The board, the briefs and the log
+  # all live in p/<key>/, so re-deriving a key that was set by hand would point
+  # this repo at an empty directory and show the project as having no work.
+  # `Acme-Org/Acme-Desktop` derives to `acme-org-acme-desktop`, against a
+  # real config that says `acme-org-desktop`.
+  existing_key=""
+  [ -s "$CONFIG" ] && existing_key="$(jq -r --arg n "$repo" \
+    '(.repos[]? | select(.name==$n) | .key) // empty' "$CONFIG" 2>/dev/null || true)"
+  key="${existing_key:-$(repo_key "$repo")}"
 
   mkdir -p "$ROOT/workspaces" "$ROOT/p/$key"
 
@@ -150,8 +160,8 @@ write_config() { # write_config <json of {operator, repo}>
 # ── --show ────────────────────────────────────────────────────────────────────
 if [ "${1-}" = "--show" ]; then
   [ -f "$CONFIG" ] || die "no config at $CONFIG — run setup.sh to write one."
-  jq '{operator, repos: [.repos[] | {name, key, localPath, defaultBase, supersetProjectId}],
-       limits, cadence}' "$CONFIG"
+  jq '{operator, repos: [.repos[] | {name, key, shortName, localPath, defaultBase,
+                                     supersetProjectId}], limits, cadence}' "$CONFIG"
   exit 0
 fi
 
@@ -187,6 +197,7 @@ if [ "${1-}" = "--apply" ]; then
   shift
   require_tools
   a_repo="" a_path="" a_base="" a_login="" a_name="" a_linear="" a_tz="" a_reviewer=""
+  a_short=""
   a_sp="" scout=1
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -198,6 +209,7 @@ if [ "${1-}" = "--apply" ]; then
       --linear)            a_linear="$(linear_slug "$2")"; shift 2 ;;
       --timezone)          a_tz="$2"; shift 2 ;;
       --reviewer)          a_reviewer="$2"; shift 2 ;;
+      --short-name)        a_short="$2"; shift 2 ;;
       --superset-project)  a_sp="$2"; shift 2 ;;
       --no-scout)          scout=0; shift ;;
       *) die "unknown flag: $1" ;;
@@ -215,9 +227,10 @@ if [ "${1-}" = "--apply" ]; then
   write_config "$(jq -n \
     --arg login "$a_login" --arg name "$a_name" --arg ws "$a_linear" --arg tz "$a_tz" \
     --arg repo "$a_repo" --arg base "$a_base" --arg path "$a_path" \
-    --arg reviewer "$a_reviewer" --arg sp "$a_sp" '
+    --arg reviewer "$a_reviewer" --arg sp "$a_sp" --arg short "$a_short" '
     { operator: { githubLogin: $login, linearName: $name, linearWorkspace: $ws, timezone: $tz },
       repo: { name: $repo, defaultBase: $base, localPath: $path,
+              shortName: (if $short == "" then ($repo | split("/") | last) else $short end),
               reviewers: (if $reviewer == "" then [] else [$reviewer] end),
               supersetProjectId: (if $sp == "" then null else $sp end) } }')"
   [ "$scout" = 1 ] && install_scout
@@ -284,9 +297,10 @@ say ""
 write_config "$(jq -n \
   --arg login "$github_login" --arg name "$operator_name" --arg ws "$linear_ws" \
   --arg tz "$timezone" --arg repo "$repo" --arg base "$default_base" \
-  --arg path "$local_path" --arg reviewer "$reviewer" --arg sp "$superset_project" '
+  --arg path "$local_path" --arg reviewer "$reviewer" --arg sp "$superset_project" --arg short "$short_name" '
   { operator: { githubLogin: $login, linearName: $name, linearWorkspace: $ws, timezone: $tz },
     repo: { name: $repo, defaultBase: $base, localPath: $path,
+              shortName: (if $short == "" then ($repo | split("/") | last) else $short end),
             reviewers: (if $reviewer == "" then [] else [$reviewer] end),
             supersetProjectId: (if $sp == "" then null else $sp end) } }')"
 install_scout
