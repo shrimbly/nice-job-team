@@ -110,7 +110,7 @@ struct MultiProjectTests {
             ],
             pullRequests: [
                 pr(538, repo: "acme/platform", title: "feat(distributions): build a distribution"),
-                pr(1382, repo: "acme/desktop", title: "chore(comfybuilder): merge main"),
+                pr(1382, repo: "acme/desktop", title: "chore(release): merge main"),
             ],
             config: twoRepos)
 

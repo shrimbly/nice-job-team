@@ -63,6 +63,15 @@ final class StatusItemController: NSObject, NSApplicationDelegate {
 
         store.start()
         updateStatusItem()
+
+        if ProcessInfo.processInfo.environment["BOARD_PROBE"] == "1" {
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1.2))
+                self?.toggle()
+                try? await Task.sleep(for: .seconds(0.6))
+                exit(0)
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -154,6 +163,28 @@ final class StatusItemController: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         presentation.reveal(reduceMotion: reduceMotion)
         watchForDismissal()
+        probeGeometry()
+    }
+
+    /// `BOARD_PROBE=1` prints where the panel actually landed. Reasoning about this
+    /// from the source has been wrong twice; the numbers are not.
+    private func probeGeometry() {
+        guard ProcessInfo.processInfo.environment["BOARD_PROBE"] == "1",
+              let button = statusItem.button, let barWindow = button.window,
+              let screen = barWindow.screen ?? NSScreen.main else { return }
+        let anchor = barWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        let frame = window.frame
+        let visibleTop = frame.maxY - BoardPanel.shadowMargin
+        print("""
+        menu bar underside   \(screen.visibleFrame.maxY)
+        button bottom        \(anchor.minY)
+        window frame         \(frame)
+        window top           \(frame.maxY)
+        panel visible top    \(visibleTop)   (window top less shadowMargin \(BoardPanel.shadowMargin))
+        gap under menu bar   \(screen.visibleFrame.maxY - visibleTop)
+        hosting fittingSize  \(hosting.fittingSize)
+        contentView bounds   \(window.contentView?.bounds ?? .zero)
+        """)
     }
 
     private func dismiss() {

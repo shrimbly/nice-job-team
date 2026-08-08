@@ -21,15 +21,25 @@ import AppKit
 /// has to keep taking clicks.
 final class PanelContentView: NSView {
     private let margin: CGFloat
+    private let content: NSView
 
     init(content: NSView, margin: CGFloat) {
         self.margin = margin
+        self.content = content
         super.init(frame: content.frame)
-        content.autoresizingMask = [.width, .height]
         addSubview(content)
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    /// Pinned rather than autoresized. An autoresizing mask preserves whatever
+    /// margins the subview started with, so any difference between the hosting
+    /// view's initial frame and the window's content rect survives every resize
+    /// as an offset — which showed up as the panel sitting low.
+    override func layout() {
+        super.layout()
+        content.frame = bounds
+    }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         // `point` arrives in the superview's coordinates, as AppKit hit tests down.
@@ -44,6 +54,19 @@ final class BoardWindow: NSPanel {
     /// buttons dead and nothing selectable.
     override var canBecomeKey: Bool { true }
 
+    /// Keep the frame that was asked for.
+    ///
+    /// AppKit constrains a window to the screen's *visible* frame, which excludes
+    /// the menu bar — but only below `.popUpMenu`. This window is deliberately
+    /// taller than the panel by `shadowMargin`, so its top intrudes behind the
+    /// menu bar by design, and the constraint pushed the whole panel down by that
+    /// margin: a 28pt gap under the menu bar instead of hugging it.
+    ///
+    /// The intrusion is only the shadow band, and the menu bar draws over it.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
+    }
+
     convenience init(content: NSView) {
         self.init(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
                   styleMask: [.borderless, .nonactivatingPanel],
@@ -54,7 +77,23 @@ final class BoardWindow: NSPanel {
         // window shadow is computed from the window and would sit there at full
         // size through the whole reveal.
         hasShadow = false
-        level = .popUpMenu
+        // Below the menu bar, above everything else.
+        //
+        // The window is taller than the panel by `shadowMargin`, so its top edge
+        // reaches 24pt into a 33pt menu bar, the width of the whole panel. At
+        // `.popUpMenu` that band sits *above* the menu bar and takes every click
+        // in it — other applications' status items, and this app's own, so
+        // clicking the icon to close the panel did nothing.
+        //
+        // Hit testing does not fix that. A view declining a point only means no
+        // view handles it; the window has already taken the event. A click falls
+        // through a non-opaque window where the pixels are fully clear, and these
+        // are not clear — that band is where the shadow is drawn.
+        //
+        // One below `.mainMenu` puts the menu bar back on top, so the overlap is
+        // covered by the menu bar and clicked through to it, while the panel still
+        // floats over ordinary and floating windows in every application.
+        level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue - 1)
         // Whatever AppKit would do on order-in is not what the reveal does.
         animationBehavior = .none
         isMovable = false
