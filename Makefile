@@ -21,6 +21,9 @@ bundle: build
 	@cp Resources/Info.plist $(CONTENTS)/Info.plist
 	@printf 'APPL????' > $(CONTENTS)/PkgInfo
 	@touch $(APP)
+	@# Ad-hoc sign so UNUserNotificationCenter has a stable code identity to
+	@# grant notification permission against — an unsigned bundle is refused.
+	@codesign --force --sign - $(APP) 2>/dev/null || echo "warn: codesign failed — notifications may be denied"
 	@echo "built $(APP)"
 
 run: bundle
@@ -34,8 +37,13 @@ install: bundle
 	@cp -R $(APP) $(HOME)/Applications/NiceJobTeam.app
 	@echo "installed $(HOME)/Applications/NiceJobTeam.app"
 
+# cli/dist is gitignored and the wiring tests exercise the built CLI, so build
+# before test on a fresh checkout. npm ci, not install, so the lockfile stays
+# the one truth about the devDeps. run.sh is gone: its surviving checks live in
+# cli/test/wiring.test.ts and run as part of `npm test`.
 test:
 	swift test
+	cd cli && npm ci && npm run build && npm test
 
 clean:
 	swift package clean

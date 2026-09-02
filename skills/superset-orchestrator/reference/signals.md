@@ -13,7 +13,7 @@ org `acme`, Superset project id for the website repo
 
 ## 1. GitHub — free, every cycle
 
-`scripts/poll.sh` runs these for each repo in `config.json`:
+`board poll` runs these for each repo in `config.json`:
 
 ```bash
 gh pr list --repo <repo> --author @me --state open \
@@ -59,7 +59,7 @@ the agent (rebase), not something you fix.
 ## 2. Agent status files — free, every cycle
 
 Each implementation agent maintains `~/.claude/superset-orchestrator/workspaces/<workspaceId>.json`
-(schema in `board.md`). `poll.sh` collects them all. This is the authoritative
+(schema in `board.md`). `board poll` collects them all. This is the authoritative
 answer to "what is that agent doing" — it is written by the agent itself at every
 phase transition.
 
@@ -106,7 +106,7 @@ list_comments <issueId>                          (only when a decision is pendin
 Three rules:
 
 1. **`gitBranchName` is the branch to use.** Linear generates it (e.g.
-   `dev/eng-142-run-history-denser-more-informative-log-table`) and matches
+   `dev/eng-142-run-history-denser-more-informative-data-table`) and matches
    PRs back to the issue by it. Never invent your own branch name for a Linear item.
 2. **Never write to Linear without approval**, except the two updates
    `config.json` explicitly allows (attaching a PR link, moving to In Review).
@@ -154,7 +154,7 @@ board items (id + one-line title only — never the whole board), and this remin
       "branchName": "dev/eng-118-preset-visibility-toggle-onoff-specific-presets-within-a",
       "priority": "urgent",
       "domain": "settings-ui",
-      "oneLineOutcome": "A per-workspace preset allow-list toggle that persists and is reflected in the picker.",
+      "oneLineOutcome": "A per-workspace preset allowlist toggle that persists and is reflected in the picker.",
       "estimate": "M",
       "blockers": ["needs the visibility API shape confirmed"],
       "matchesBoardItem": null,

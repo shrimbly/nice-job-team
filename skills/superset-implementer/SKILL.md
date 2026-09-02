@@ -1,6 +1,6 @@
 ---
 name: superset-implementer
-description: "The contract for an implementation agent running inside a Superset workspace (git worktree): take one brief, deliver one high-quality PR on one branch, gate on the operator's approval before pushing or opening the PR, then handle review feedback until merge. Load this when a prompt says you are an implementation agent, names a brief under ~/.claude/superset-orchestrator/briefs/, or asks you to work an item in a Superset workspace."
+description: "The contract for an implementation agent running inside a Superset workspace (git worktree) or as a Claude Code cloud session: take one brief, deliver one high-quality PR on one branch, gate on the operator's approval before pushing or opening the PR — or, in a cloud session, run autonomously to a draft PR — then handle review feedback until merge. Load this when a prompt says you are an implementation agent, names a brief under ~/.claude/superset-orchestrator/briefs/, or asks you to work an item in a Superset workspace or a cloud session."
 allowed-tools:
   - Bash
   - Read
@@ -34,9 +34,13 @@ before it becomes a PR, every time.
 ## First 90 seconds
 
 ```bash
-S=~/.claude/skills/superset-implementer/scripts/status.sh
-$S init --item <itemId> --slug <slug>        # from your opening prompt
+board status init --item <itemId> --slug <slug>   # from your opening prompt
 ```
+
+If `board` is command-not-found, the CLI is not on your PATH — a setup fault,
+not yours. Say so in your first reply and ask the operator to install it
+(`npm install -g <repo>/cli`, or `<repo>/cli/bin` on the login PATH). Do not
+work on silently: without a status file the board reads you as stalled.
 
 Then, in this order:
 
@@ -46,7 +50,7 @@ Then, in this order:
 3. `git status && git log --oneline -8 && git branch --show-current` — confirm you
    are on the brief's branch, in the right worktree, and that the base is what the
    brief says.
-4. `$S phase "orienting"`.
+4. `board status phase "orienting"`.
 
 ### Write your status when work ENDS, not only when it starts
 
@@ -62,7 +66,7 @@ worked on, because nothing said otherwise.
 So: **the last thing you do in any phase is write what happened.** Not what you are
 about to do. In particular, write immediately after you
 
-- finish a rebase or resolve conflicts → `$S set '{"state":"pr-open"}'` plus a phase
+- finish a rebase or resolve conflicts → `board status set '{"state":"pr-open"}'` plus a phase
   saying it is pushed and what CI did
 - force-push, or push anything that changes the PR
 - finish addressing review feedback
@@ -75,8 +79,15 @@ honest form: "rebased past #355, force-pushed, CI green".
 If you are unsure whether the last write is still true, write again. It costs one
 command and it is the difference between the operator seeing your work and not.
 
+One kind of bookkeeping you never do: git facts. The plugin's Stop hook runs
+`board status observe` whenever your session stops, recording branch, dirt, unpushed
+commits and HEAD into the status file on its own. So your writes are about **intent**
+— state, phase, summary, what you decided and why — not about what `git status` would
+say. The hook only observes; it never speaks for you, so the write-when-work-ends
+discipline above still stands.
+
 If any of those disagree with the brief — wrong branch, missing base, a workspace
-that already has commits you did not write — **stop and ask** (`$S ask "…"`). A
+that already has commits you did not write — **stop and ask** (`board status ask "…"`). A
 wrong start compounds.
 
 ## Phases
@@ -94,14 +105,14 @@ Prefer delegating broad "where does X live" sweeps to a subagent (`Explore`) —
 want the conclusion, not the file dumps. Do this only when a search would otherwise
 span many directories.
 
-`$S phase "oriented: <the files that own this>"`
+`board status phase "oriented: <the files that own this>"`
 
 ### 2. Plan (short, written down)
 
 Write the plan into the status file as your phase text — one line per step, and the
 verification for each. If the plan has more than ~6 steps, or touches something the
 brief listed as out of scope, that is a signal the item was mis-sized: say so
-(`$S ask`) rather than quietly doing a bigger job.
+(`board status ask`) rather than quietly doing a bigger job.
 
 Do not enter a formal planning mode or produce a plan document unless the brief asks
 for one. The brief already did the planning that needed a human.
@@ -116,7 +127,7 @@ for one. The brief already did the planning that needed a human.
   status file's `risks`, not in your diff.
 - Commit in coherent steps as you go, in the repo's own commit style (read
   `git log`). Committing is safe; pushing is not.
-- `$S phase "…"` at each meaningful step.
+- `board status phase "…"` at each meaningful step.
 
 ### 4. Verify — you make the claim, so you prove it
 
@@ -124,7 +135,7 @@ Run everything the brief lists, plus the repo's own suite. Record each result
 verbatim, including the bad ones:
 
 ```bash
-$S verify unit="pass — 214 tests, 0 failures" \
+board status verify unit="pass — 214 tests, 0 failures" \
           lint="pass" \
           typecheck="19 errors, all pre-existing (same on main)" \
           manual="row count 18→26 at 900px, /account/runs?view=list&mock=1"
@@ -206,14 +217,20 @@ Then run the repo's own review tooling if it has any (this environment has a
 `code-review` skill; a `/code-review` pass on your branch is cheap insurance).
 Fix what it finds that is real; note what you judged not real, and why.
 
-`$S phase "self-review complete"`
+`board status phase "self-review complete"`
 
 ### 6. The gate — stop here
 
 ```bash
-$S gate "Denser run history rows with per-row timing. 6 files, +284/-96. Unit suite
+board status gate "Denser run history rows with per-row timing. 6 files, +284/-96. Unit suite
 green, one new density test; typecheck unchanged from main; verified at 900px."
 ```
+
+A summary longer than a few hundred characters goes via stdin instead —
+`printf '%s' "$SUMMARY" | board status gate -` — never inline. Endpoint-security
+software on some machines kills a node process whose command line carries a
+~1KB argument, silently and before the write lands; `phase`, `ask`, `risk` and
+`set` accept the same `-`.
 
 That flips your state to `awaiting-approval` and flags `needsOperator`. Now:
 
@@ -228,6 +245,33 @@ That flips your state to `awaiting-approval` and flags `needsOperator`. Now:
 Approval arrives either as a direct reply in your session or as a fresh prompt from
 the orchestrator. Both are the same thing: proceed to submit.
 
+#### If you are a cloud session, the gate is a draft PR instead
+
+You are a cloud session when you are running on claude.ai rather than in a Superset
+workspace on the operator's machine. Two things are true there that change this
+step, and only this step:
+
+- **`board status` cannot reach the orchestrator.** Its status files live in the
+  operator's home directory, and you are not on that machine. Do not try; nothing
+  is listening.
+- **Nobody is attached.** A question asked here waits until somebody opens a
+  browser, which may be hours. There is no operator to answer it.
+
+So: **do not stop at the gate. Work to completion.** Make the judgement calls the
+brief leaves open, and write down what you chose and why in the PR body — that is
+where the operator reviews them.
+
+Then push and open the PR **as a draft**. The draft is the gate: it means "this is
+finished and wants a human", and the board reads it exactly that way. Everything
+else in this skill still applies, the quality bar most of all — nobody is going to
+catch a shortcut before the PR exists.
+
+If you genuinely cannot proceed — the brief contradicts the code, or the change
+needs a decision only the operator can make — still open the draft PR, with the
+work you did complete and the question stated plainly at the top of the body. A
+draft PR that asks a question is visible on the board. A session sitting idle
+waiting for an answer is not.
+
 ### 7. Submit
 
 Follow `reference/pr-and-review.md`. In outline:
@@ -236,12 +280,18 @@ Follow `reference/pr-and-review.md`. In outline:
 git push -u origin "$(git branch --show-current)"
 gh pr create --repo <repo> --base <base> --title "<type(scope): outcome>" --body-file .git/PR_BODY.md
 gh pr edit <n> --add-reviewer <reviewer-from-brief>
-$S pr <n> <url>
+board status pr <n> <url>
 ```
 
 The PR body says what changed, why, how it was verified, and what a reviewer should
 look at hardest — with screenshots for anything visual. Never open a draft PR unless
 the brief asks for one; a draft signals "not ready" and the reviewer will skip it.
+
+**Write it direct, brief and succinct: load the `simple-english` skill and follow
+it.** Active voice, one fact per sentence, no padding, no hedging modals, and the
+measurable result rather than an adjective for it. The reviewer's capacity is what
+caps this whole workflow, and a body nobody finishes reading spends it for nothing.
+`reference/pr-and-review.md` has the rules and a before/after table.
 
 ### Keep Linear honest — report, don't write
 
@@ -253,7 +303,7 @@ So after opening or un-drafting a PR, **check the issue's status and record what
 saw**:
 
 ```bash
-$S set '{"linear":{"issue":"ENG-160","observedStatus":"Backlog","expected":"In Review"}}'
+board status set '{"linear":{"issue":"ENG-160","observedStatus":"Backlog","expected":"In Review"}}'
 ```
 
 Then say it in your session too. **Do not write to Linear yourself** — the
@@ -269,17 +319,17 @@ merged. And do not comment on the issue unless the brief tells you to.
 You stay alive through review. When feedback arrives (usually as a re-prompt with a
 feedback brief):
 
-1. `$S state fixing "addressing review #<n>"`.
+1. `board status state fixing "addressing review #<n>"`.
 2. Read every unresolved thread yourself: `gh pr view <n> --repo <r> --comments`
    plus the GraphQL thread query in `reference/pr-and-review.md`.
 3. Fix each one. Reply on each thread saying what you did, in one line. **Do not
    resolve threads** — the reviewer resolves.
 4. Disagreement is allowed once: say why, then do it their way unless it is a
-   correctness or safety problem, in which case escalate via `$S ask`.
+   correctness or safety problem, in which case escalate via `board status ask`.
 5. Re-run the full verification. Review fixes break things at least as often as
    first drafts.
 6. Push (`--force-with-lease` only, only your own branch), re-request review
-   (`gh pr edit <n> --add-reviewer <who>`), then `$S state pr-open`.
+   (`gh pr edit <n> --add-reviewer <who>`), then `board status state pr-open`.
 
 Every round of feedback is verified the same way as the first submission. Nothing
 lands on "it's just a small change".
@@ -289,7 +339,7 @@ lands on "it's just a small change".
 The operator merges. You do not. When the PR is merged:
 
 ```bash
-$S state merged "merged as #441"
+board status state merged "merged as #441"
 ```
 
 Leave the worktree clean and everything pushed — the orchestrator's reaper refuses
@@ -299,6 +349,10 @@ workspace the operator has to clean up by hand. **Never delete your own workspac
 ## Hard rules
 
 1. **No push, no PR, before approval.** The single rule the whole system rests on.
+   The one exception is a cloud session, which has no operator to approve it and
+   no status file to wait in: there, the draft PR *is* the approval gate, and
+   everything below still holds. If you are in a workspace on the operator's
+   machine, this rule is absolute.
 2. **Never commit to `main`** or any shared branch. Your branch only.
 3. **`--force-with-lease`, never `--force`**, and never to a branch that is not yours.
 4. **Never merge your own PR**, never `gh pr merge`, never bypass a required check.
@@ -320,7 +374,7 @@ workspace the operator has to clean up by hand. **Never delete your own workspac
 
 ## When you are stuck
 
-`$S ask "<the exact decision you need, and the options you see>"` then stop. A
+`board status ask "<the exact decision you need, and the options you see>"` then stop. A
 blocked agent that asks a sharp question costs one cycle; a blocked agent that
 guesses costs a PR and a review.
 
@@ -334,7 +388,7 @@ this?"*
 - `reference/quality-bar.md` — what "very high standard" means here, as a checklist
 - `reference/pr-and-review.md` — exact push/PR/reviewer/feedback commands
 - `reference/AGENTS-snippet.md` — the same contract, portable, for non-Claude agents
-- `scripts/status.sh` — the status file; `status.sh show` to see your own state
+- `board status` — the status file; `board status show` to see your own state
 
 Your counterpart is the `superset-orchestrator` skill. It reads your status file
 every few minutes and never reads your transcript. Anything the operator needs to

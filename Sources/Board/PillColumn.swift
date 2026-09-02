@@ -29,10 +29,46 @@ enum PillColumn {
         return (widest + 1).rounded(.up) + padding * 2
     }
 
+    /// The Reviews tab's author pills, same rule: every pill takes the width of
+    /// the widest name on the queue, and names are normalised to at most
+    /// `authorLimit` characters first so one long login cannot push every row's
+    /// chips to the right.
+    static func width(forAuthors authors: [String]) -> CGFloat {
+        let widest = authors.map { measure(normalisedAuthor($0)) }.max() ?? 0
+        return (widest + 1).rounded(.up) + padding * 2
+    }
+
+    /// At most ten characters, uppercased — what the pill actually draws.
+    static let authorLimit = 10
+    static func normalisedAuthor(_ author: String) -> String {
+        String(author.prefix(authorLimit)).uppercased()
+    }
+
     private static func measure(_ label: String) -> CGFloat {
         (label as NSString).size(withAttributes: [
             .font: Typography.pillMeasuring,
             .kern: Typography.uppercaseTracking,
         ]).width
+    }
+}
+
+/// The same idea for the pull-request chip's label, which is the only chip that
+/// carries text and so the only one whose width moves.
+///
+/// It moved by more than the stack chip: `PR-538` and `PR-1382` differ by a digit,
+/// which stepped the ticket and preview chips in and out down the column. `×3` is
+/// narrower still. One width for all of them, taken from the labels actually on the
+/// board, and the column is a column.
+enum PRChipColumn {
+    static func labelWidth(for cards: [ProjectCard]) -> CGFloat {
+        let labels = PRChipLabel.texts(for: cards.map { ($0.card, $0.prCount) })
+        let widest = labels.map(measure).max() ?? 0
+        // A point of slack, for the same reason `PillColumn` needs one: AppKit
+        // measures the string and SwiftUI lays it out.
+        return (widest + 1).rounded(.up)
+    }
+
+    private static func measure(_ label: String) -> CGFloat {
+        (label as NSString).size(withAttributes: [.font: Typography.labelMeasuring]).width
     }
 }

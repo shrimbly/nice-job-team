@@ -14,15 +14,14 @@ work, do not touch other worktrees, do not decide what ships.
 ## Report through the status file
 
 ```bash
-S=~/.claude/skills/superset-implementer/scripts/status.sh
-$S init --item <itemId> --slug <slug>     # first thing you do
-$S phase "<what you are doing now>"       # at every meaningful step
-$S verify unit="…" lint="…" typecheck="…" manual="…"
-$S risk "<something that could break, and how it would show>"
-$S ask "<a decision you need>"            # → blocked; then stop
-$S gate "<one or two line summary>"       # → awaiting approval; then stop
-$S pr <number> <url>                      # after the PR is open
-$S state merged "merged as #<n>"
+board status init --item <itemId> --slug <slug>     # first thing you do
+board status phase "<what you are doing now>"       # at every meaningful step
+board status verify unit="…" lint="…" typecheck="…" manual="…"
+board status risk "<something that could break, and how it would show>"
+board status ask "<a decision you need>"            # → blocked; then stop
+board status gate "<one or two line summary>"       # → awaiting approval; then stop
+board status pr <number> <url>                      # after the PR is open
+board status state merged "merged as #<n>"
 ```
 
 Silence longer than 45 minutes reads as a stall. Update the file, not just your chat.
@@ -55,26 +54,26 @@ Silence longer than 45 minutes reads as a stall. Update the file, not just your 
 5. **Self-review** — read `git diff <base>...HEAD` as an annoyed reviewer. Remove
    debug lines, stray files, drive-by renames, and anything that does not serve the
    outcome.
-6. **Gate — stop.** `$S gate "<summary>"`, post the summary and diffstat, and wait.
+6. **Gate — stop.** `board status gate "<summary>"`, post the summary and diffstat, and wait.
    **Do not `git push`. Do not `gh pr create`.** Approval comes from the operator.
 7. **Submit** (only after approval):
    ```bash
    git push -u origin "$(git branch --show-current)"
    gh pr create --repo <repo> --base <base> --title "<type(scope): outcome>" --body-file .git/PR_BODY.md
    gh pr edit <n> --repo <repo> --add-reviewer <reviewer>
-   $S pr <n> <url>
+   board status pr <n> <url>
    ```
    Body says what changed, why, how it was verified, what to look at hardest, and
    includes screenshots for visual work. No draft PRs unless asked.
-8. **Review feedback** — `$S state fixing`. Address every unresolved thread, reply
+8. **Review feedback** — `board status state fixing`. Address every unresolved thread, reply
    one line each saying what you did, do **not** resolve threads yourself, re-run
    the full verification, push with `--force-with-lease`, re-request review, then
-   `$S state pr-open`.
-9. **Merge** — you never merge. When the operator merges, `$S state merged` and
+   `board status state pr-open`.
+9. **Merge** — you never merge. When the operator merges, `board status state merged` and
    leave the worktree clean and pushed. Never delete your own workspace.
 
 **Linear:** after opening or un-drafting a PR, check the linked issue's status and
-record it — `$S set '{"linear":{"issue":"ENG-160","observedStatus":"Backlog","expected":"In Review"}}'`.
+record it — `board status set '{"linear":{"issue":"ENG-160","observedStatus":"Backlog","expected":"In Review"}}'`.
 The GitHub integration is reliable on merge and inconsistent on open. **Never write to
 Linear yourself**; the orchestrator owns those writes so they happen once and cannot
 race the integration. You notice, it acts.

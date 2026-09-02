@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+// Thin launcher over the compiled CLI. Plain JS with a dynamic import so it runs
+// under either module system Node picks for an extensionless bin, and so a
+// missing build reports itself instead of a stack trace.
+import('../dist/main.js').catch((err) => {
+  console.error(err instanceof Error ? err.message : String(err));
+  console.error('is the CLI built? run: npm run build');
+  process.exit(1);
+});

@@ -1,0 +1,17 @@
+{
+  "name": "superset-board",
+  "version": "0.1.0",
+  "description": "The Superset orchestrator board as a Claude Code plugin: the orchestrator, implementer and setup skills, the read-only scout subagent, and a Stop hook that records an implementation agent's status observation.",
+  "author": {
+    "name": "Dev",
+    "email": "dev@acme.org"
+  },
+  "license": "MIT",
+  "keywords": [
+    "superset",
+    "orchestrator",
+    "board",
+    "worktree",
+    "agents"
+  ]
+}

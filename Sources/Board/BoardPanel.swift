@@ -21,9 +21,21 @@ struct BoardPanel: View {
     /// stored copy is for the next launch; this one is for this frame.
     @AppStorage("expandedCards") private var expandedRaw = ""
     @State private var liveExpanded: Set<String>?
+    /// Which tab is up, kept across launches like the expansion set. Stored as a
+    /// raw string because @AppStorage is; read through `tab`.
+    @AppStorage("selectedTab") private var selectedTabRaw = Tab.board.rawValue
     @State private var now = Date()
     @State private var copied: CopiedAt?
     @State private var dismissCopied: Task<Void, Never>?
+    @State private var chooser: ChooserAt?
+    /// What the cards come to, measured from inside the scroll view.
+    ///
+    /// A scroll view lays its content out against an unbounded proposal on the
+    /// scroll axis, so this is the cards' own height and owes nothing to the
+    /// window's. Giving the scroll view that height back is what stops it taking
+    /// every point it is offered — which is what left the panel unable to grow when
+    /// a card opened, or to shrink when one closed.
+    @State private var cardsHeight: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The panel is the frame of reference for the copy confirmation, so a chip
@@ -39,18 +51,26 @@ struct BoardPanel: View {
     /// popover's radius, which is what this still is.
     private static let corner: CGFloat = 12
 
-    /// A refresh costs one point of the 5,000-per-hour GraphQL budget, so Board
-    /// spends about 60 an hour. Below this, something else is eating the token and
-    /// that is worth saying; above it the number is just a number.
-    private static let lowQuota = 1000
-
     /// The margin around the cards and the gap between them are one number, so the
     /// stack reads as evenly spaced rather than as cards inset inside a frame.
     private static let cardSpacing: CGFloat = 8
 
-    /// The rule and the footer under the cards. Taken off the room on screen so the
-    /// cap below is the room the *cards* have, not the room the panel has.
-    private static let chrome: CGFloat = 32
+    enum Tab: String {
+        case board
+        case reviews
+    }
+
+    private var tab: Tab {
+        get { Tab(rawValue: selectedTabRaw) ?? .board }
+        nonmutating set { selectedTabRaw = newValue.rawValue }
+    }
+
+    /// The rule and the footer under the cards, and now the tab strip above
+    /// them. Taken off the room on screen so the cap below is the room the
+    /// *cards* have, not the room the panel has.
+    private static let chrome: CGFloat = 32 + tabsHeight
+    /// The strip's own height: 7pt padding around a body-size tab, plus its rule.
+    private static let tabsHeight: CGFloat = 40
 
     /// Enough for two cards with one of them open. Below this the cap is doing more
     /// harm than the scrolling it avoids — on a short screen, or against a menu bar
@@ -67,6 +87,18 @@ struct BoardPanel: View {
         let id = UUID()
         let rect: CGRect
     }
+
+    /// The chip that was pressed, what it stands for, and which of its links the
+    /// rows lead to.
+    private struct ChooserAt: Equatable {
+        let rect: CGRect
+        let prs: [StackRow]
+        let target: StackMenu.Target
+    }
+
+    /// The width the panel is fixed to. The chooser is placed against it, so a chip
+    /// near the right edge does not raise a menu that hangs off the side.
+    private static let width: CGFloat = 388
 
     private let tick = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
 
@@ -93,17 +125,39 @@ struct BoardPanel: View {
 
     /// Reports the panel's laid-out size, shadow room included, since that is the
     /// size the window has to be.
+    ///
+    /// This only says anything once nothing in the panel is greedy. The hosting view
+    /// lays the root out at the window's content size, so a view that takes whatever
+    /// height it is offered makes this a tautology — the panel asking the window to
+    /// be the size it already is, which `resize(to:)` then discards. The scroll view
+    /// was that view; see `cardsHeight`.
     private var measure: some View {
         GeometryReader { proxy in
             Color.clear.onChange(of: proxy.size, initial: true) { _, size in onResize(size) }
         }
     }
 
+    /// The same idiom, for the cards. Through `onChange` rather than written
+    /// straight from the reader's body, so the assignment lands after the layout
+    /// pass that produced it rather than in the middle of it.
+    private var measureCards: some View {
+        GeometryReader { proxy in
+            Color.clear.onChange(of: proxy.size.height, initial: true) { _, height in
+                cardsHeight = height
+            }
+        }
+    }
+
     private var panel: some View {
         VStack(spacing: 0) {
-            // No title row: the menu bar item already carries the count, and the
-            // cards say what they are.
-            if store.cards.isEmpty {
+            // The one piece of chrome above the cards: which of the two lists is
+            // up, with both counts always readable. (There is still no title row —
+            // the tabs say what the lists are.)
+            tabs
+            Divider().overlay(Palette.rule)
+            if tab == .reviews {
+                reviewsContent
+            } else if store.cards.isEmpty {
                 empty
             } else {
                 ScrollView {
@@ -117,11 +171,17 @@ struct BoardPanel: View {
                             CardRow(
                                 card: entry.card,
                                 project: store.showsProjects ? entry.shortName : nil,
+                                stack: entry.stack,
+                                trackerKind: entry.trackerKind,
+                                host: entry.host,
+                                prTitle: entry.prTitle,
                                 pillWidth: pillWidth,
+                                prLabelWidth: prLabelWidth,
                                 isExpanded: expanded.contains(entry.id),
                                 toggle: { toggle(entry.id) },
                                 open: openLink,
-                                copied: showCopied)
+                                copied: showCopied,
+                                chose: showChooser)
                                 // Each card resolves out of a blur a beat after the
                                 // one above it. Every card takes part now that the
                                 // stack builds them all, on screen or not, which is
@@ -133,17 +193,45 @@ struct BoardPanel: View {
                         }
                     }
                     .padding(Self.cardSpacing)
+                    .background(measureCards)
                 }
-                .frame(maxHeight: maxCardsHeight)
+                // A definite height, and deliberately not `maxHeight`. A maximum is
+                // a licence to expand: the view takes everything it is offered up to
+                // that bound, which is what a scroll view does anyway, and it was
+                // the cap — not the scroll view — that kept the panel pinned to the
+                // window's height and unable to report a size of its own.
+                //
+                // Nil until the cards have been measured. That is the state the
+                // panel is in when `toggle()` asks for `fittingSize`, and an
+                // unspecified proposal is the one proposal a scroll view answers
+                // with what it holds.
+                .frame(height: cardsHeight > 0 ? min(cardsHeight, maxCardsHeight) : nil,
+                       alignment: .top)
             }
             Divider().overlay(Palette.rule)
             footer
         }
-        .frame(width: 388)
+        .frame(width: Self.width)
         .background(Palette.bg)
         .coordinateSpace(name: Self.coordinateSpace)
-        // Drawn at panel level so it is not clipped by the card or the scroll view,
-        // and never takes a click that was meant for what is underneath it.
+        // Drawn at panel level so it is not clipped by the card or the scroll view.
+        // Unlike the confirmation this one is there to be clicked, so it is also
+        // laid over a catcher that takes a click anywhere else and puts it away.
+        .overlay {
+            if let chooser {
+                Color.black.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture { hideChooser() }
+                StackMenu(prs: chooser.prs,
+                          target: chooser.target,
+                          rise: StackMenu.rise(from: chooser.rect, count: chooser.prs.count),
+                          open: { url in openLink(url); hideChooser() })
+                    .transition(.opacity)
+                    .position(StackMenu.restingCentre(above: chooser.rect,
+                                                      count: chooser.prs.count,
+                                                      panelWidth: Self.width))
+            }
+        }
         .overlay {
             if let copied {
                 // The rise and the tilt belong to the toast, not to this transition —
@@ -157,7 +245,121 @@ struct BoardPanel: View {
             }
         }
         .onReceive(tick) { now = $0 }
+        // A menu left standing would be waiting over a card that is no longer there
+        // when the panel is next opened.
+        .onChange(of: presentation.isOpen) { _, isOpen in if !isOpen { chooser = nil } }
+        .onChange(of: store.cards.map(\.id)) { _, _ in chooser = nil }
         .onDisappear { dismissCopied?.cancel() }
+    }
+
+    // MARK: - Tabs
+
+    private var tabs: some View {
+        HStack(spacing: 6) {
+            tabButton(.board, label: "Board", count: "\(store.cards.count)")
+            tabButton(
+                .reviews, label: "Reviews",
+                count: store.reviewsAvailable || !store.reviews.isEmpty
+                    ? "\(store.reviews.count)" : "—")
+            Spacer()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+    }
+
+    private func tabButton(_ target: Tab, label: String, count: String) -> some View {
+        let isActive = tab == target
+        return Button {
+            tab = target
+            chooser = nil
+        } label: {
+            HStack(spacing: 5) {
+                // The card-title face exactly — the tabs name the lists the way
+                // a title names a card, and two nearly-equal styles read as a
+                // mistake rather than a hierarchy.
+                Text(label)
+                    .font(Typography.title)
+                    .foregroundStyle(isActive ? Palette.ink : Palette.faint)
+                // The count is information, not an alert: it stays in the
+                // neutral ramp whatever it says, and the tab badge alone is
+                // what marks the queue.
+                Text(count)
+                    .font(Typography.title)
+                    .monospacedDigit()
+                    .foregroundStyle(isActive ? Palette.soft : Palette.faint.opacity(0.8))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                isActive ? Palette.rule.opacity(0.75) : .clear,
+                in: RoundedRectangle.squircle(5))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Reviews
+
+    @ViewBuilder private var reviewsContent: some View {
+        if store.reviews.isEmpty {
+            reviewsEmpty
+        } else {
+            ScrollView {
+                VStack(spacing: Self.cardSpacing) {
+                    ForEach(Array(store.reviews.enumerated()), id: \.element.review.ref) { index, entry in
+                        ReviewRow(
+                            review: entry.review,
+                            project: store.showsProjects ? entry.shortName : nil,
+                            pillWidth: reviewPillWidth,
+                            actionsEnabled: store.orchestratorPresent,
+                            isStarting: store.startingReview == entry.review.ref,
+                            open: openLink,
+                            copied: showCopied,
+                            start: { startReview(entry.review) },
+                            dismiss: { dismissReview(entry.review) })
+                            .blur(radius: presentation.isOpen ? 0 : Motion.cardBlur(reduceMotion: reduceMotion))
+                            .opacity(presentation.isOpen ? 1 : 0)
+                            .animation(Motion.cardReveal(index: index, reduceMotion: reduceMotion),
+                                       value: presentation.isOpen)
+                    }
+                }
+                .padding(Self.cardSpacing)
+                .background(measureCards)
+            }
+            .frame(height: cardsHeight > 0 ? min(cardsHeight, maxCardsHeight) : nil,
+                   alignment: .top)
+        }
+    }
+
+    /// "Queue is clear" and "this CLI predates reviews" must not read the same —
+    /// the exact distinction the boardless empty state already draws.
+    private var reviewsEmpty: some View {
+        Text(store.reviewsAvailable
+            ? "No PRs waiting on your review."
+            : "This board's CLI doesn't report reviews yet.\nUpdate superset-board to see them here.")
+            .font(Typography.body)
+            .lineSpacing(Typography.bodyLineSpacing)
+            .foregroundStyle(Palette.faint)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 26)
+    }
+
+    private func startReview(_ review: Review) {
+        Task {
+            if let url = await store.startReview(review) {
+                openLink(url)
+            }
+        }
+    }
+
+    private func dismissReview(_ review: Review) {
+        withAnimation(Motion.disclosure(reduceMotion: reduceMotion)) {
+            // The store removes the row optimistically; the animation here is
+            // what lets the rows below travel up rather than snap.
+        }
+        Task { await store.dismissReview(review) }
     }
 
     // MARK: -
@@ -170,7 +372,7 @@ struct BoardPanel: View {
                 .foregroundStyle(statusColor)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .help(store.lastError ?? "")
+                .help(store.lastError ?? store.note ?? "")
             Spacer()
             Button("Refresh") { store.refreshNow() }
                 .buttonStyle(.plain)
@@ -186,14 +388,29 @@ struct BoardPanel: View {
     }
 
     private var empty: some View {
-        Text(store.lastError == nil ? "Nothing on the board." : "No board — see below.")
+        Text(emptyMessage)
             .font(Typography.body)
             .foregroundStyle(Palette.faint)
+            .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
+            .padding(.horizontal, 20)
             .padding(.vertical, 26)
     }
 
+    /// An unconfigured board says so, and says what to do about it. It used to read
+    /// "Nothing on the board", which is what a quiet morning looks like — the one
+    /// message that must not be shown when the truth is that nothing is watched.
+    private var emptyMessage: String {
+        if store.lastError != nil { return "No board — see below." }
+        guard store.hasRepos else {
+            return "No repository configured.\nRun board init, or set BOARD_REPOS=owner/name."
+        }
+        return "Nothing on the board."
+    }
 
+
+    /// "polled Xm ago" comes from the document's own generatedAt — when the board
+    /// was actually polled — never from the local clock of the read.
     private var status: String {
         if store.isRefreshing { return "refreshing…" }
         if let error = store.lastError {
@@ -201,28 +418,38 @@ struct BoardPanel: View {
             return "\(error) · retrying in \(Int(retry.rounded()))s"
         }
         var parts = ["polled \(RelativeTime.short(store.lastUpdated, now: now))"]
-        if store.usingStalePullRequests { parts.append("orchestrator's last poll") }
+        // The CLI's degradation note, verbatim: the board is standing on stale or
+        // partial PR data, and the note says which call failed.
+        if let note = store.note { parts.append(note) }
         if !store.orchestratorPresent { parts.append("github only") }
-        if isQuotaLow, let quota = store.quotaRemaining { parts.append("quota \(quota)") }
+        if tab == .reviews && !store.reviews.isEmpty {
+            parts.append("\(store.reviews.count) awaiting review")
+        }
         return parts.joined(separator: " · ")
     }
 
-    private var isQuotaLow: Bool {
-        guard let quota = store.quotaRemaining else { return false }
-        return quota < Self.lowQuota
-    }
-
-    /// The quota only appears when it is low, so when it does appear it should read
-    /// as something to look at rather than as more footer text.
+    /// A degraded render is worth a glance, not an alarm: the cards still stand,
+    /// on the last data the CLI had.
     private var statusColor: Color {
         if store.lastError != nil { return Palette.foreground(.bad) }
-        return isQuotaLow ? Palette.foreground(.you) : Palette.faint
+        return store.usingStalePullRequests ? Palette.foreground(.you) : Palette.faint
     }
 
     /// Computed here rather than in the card, because it is a property of the board
     /// as a whole — every pill has to agree on it for the column to be a column.
     private var pillWidth: CGFloat {
         PillColumn.width(for: store.cards.map(\.card))
+    }
+
+    /// The same, for the one chip that carries text.
+    private var prLabelWidth: CGFloat {
+        PRChipColumn.labelWidth(for: store.cards)
+    }
+
+    /// One width for every author pill on the Reviews tab, so the chips beside
+    /// them start at the same x on every row.
+    private var reviewPillWidth: CGFloat {
+        PillColumn.width(forAuthors: store.reviews.map(\.review.author))
     }
 
     /// Nothing has been opened or shut yet this launch, so what was stored still
@@ -244,6 +471,19 @@ struct BoardPanel: View {
             guard !Task.isCancelled else { return }
             withAnimation(Motion.copiedOut(reduceMotion: reduceMotion)) { copied = nil }
         }
+    }
+
+    /// The chooser comes up on the same curve the confirmation does, and goes away
+    /// on the same one — a press over a chip is answered the same way whatever it
+    /// raises. A second press on the same chip puts it away again.
+    private func showChooser(at rect: CGRect, prs: [StackRow], target: StackMenu.Target) {
+        let next = ChooserAt(rect: rect, prs: prs, target: target)
+        guard chooser != next else { return hideChooser() }
+        withAnimation(Motion.copiedIn(reduceMotion: reduceMotion)) { chooser = next }
+    }
+
+    private func hideChooser() {
+        withAnimation(Motion.copiedOut(reduceMotion: reduceMotion)) { chooser = nil }
     }
 
     /// Animated from here rather than inside the card, because opening one card moves

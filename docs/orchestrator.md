@@ -19,7 +19,7 @@ poller. Two things stay global.
 | `workspaces/<id>.json` | **agents** | the status inbox, one file per agent |
 
 `workspaces/` is global on purpose. The key is a workspace UUID, which is unique across
-every project, so two projects cannot collide. It also means `status.sh` needs no
+every project, so two projects cannot collide. It also means `board status` needs no
 knowledge of projects: an agent writes to the same path whatever project it belongs to.
 
 **Per project, in `p/<key>/`:**
@@ -67,7 +67,7 @@ The other gates follow the same rule:
 
 ## Concurrency
 
-`limits.maxActiveWorkspaces` caps the number of live agents. `dispatch.sh` refuses to go
+`limits.maxActiveWorkspaces` caps the number of live agents. `board dispatch` refuses to go
 over it. The default is 15.
 
 **This budget is global across every project, not per project.** Per-project caps multiply:
@@ -141,13 +141,15 @@ desktop application shows a terminal buffer, so it shows nothing. See `lessons.m
 
 The orchestrator is event driven with a heartbeat. It does not poll in a loop.
 
-`watch.sh --start --interval 60` runs one cycle per minute in the background. One cycle is
-poll, then synchronize, then automatic reap, then render. A cycle takes about 14 seconds.
+`board watch --install --interval 60` registers the poller as a login service
+(launchd on macOS, systemd on Linux) that runs one cycle per minute. One cycle is
+synchronize, then poll, then automatic reap, then archive, then render. A cycle takes
+about 14 seconds.
 
-`watch.sh --start --all` starts one poller per configured project. They are separate
-processes, each with its own pidfile, log and watchdog inside its own board directory.
-That separation is the failure isolation: a project whose cycle hangs cannot stop any
-other project from polling.
+`board watch --install --all` installs one service per configured project. They are
+separate processes, each with its own log and supervision inside its own board
+directory. That separation is the failure isolation: a project whose cycle hangs
+cannot stop any other project from polling.
 
 Between full cycles each poller watches the status inbox locally, every five seconds. An
 agent writing its status is the one signal that costs no quota to detect, so agent state

@@ -2,15 +2,15 @@
   "workspaces": [
     {
       "id": "ws-links",
-      "name": "still-water"
+      "name": "links workspace"
     },
     {
       "id": "ws-building",
-      "name": "high-tide"
+      "name": "builder"
     },
     {
       "id": "ws-blocked",
-      "name": "open-meadow"
+      "name": "blocked one"
     }
   ]
 }

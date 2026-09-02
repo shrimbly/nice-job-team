@@ -1,6 +1,6 @@
 import Foundation
 
-/// Just enough process plumbing to call `gh`.
+/// Just enough process plumbing to call the `board` CLI.
 public enum Shell {
     public struct Output: Sendable {
         public var status: Int32
@@ -36,12 +36,14 @@ public enum Shell {
     /// with a check rollup comfortably exceeds a pipe buffer, and a single-threaded
     /// read would deadlock on it.
     public static func run(
-        _ executable: URL, _ arguments: [String], timeout: TimeInterval = 30
+        _ executable: URL, _ arguments: [String], timeout: TimeInterval = 30,
+        environment: [String: String]? = nil
     ) async throws -> Output {
         try await withCheckedThrowingContinuation { continuation in
             queue.async {
                 do {
-                    continuation.resume(returning: try runBlocking(executable, arguments, timeout))
+                    continuation.resume(
+                        returning: try runBlocking(executable, arguments, timeout, environment))
                 } catch {
                     continuation.resume(throwing: error)
                 }
@@ -50,14 +52,17 @@ public enum Shell {
     }
 
     private static func runBlocking(
-        _ executable: URL, _ arguments: [String], _ timeout: TimeInterval
+        _ executable: URL, _ arguments: [String], _ timeout: TimeInterval,
+        _ environment: [String: String]?
     ) throws -> Output {
         let name = executable.lastPathComponent
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        // gh needs HOME for its config and keyring, and git on PATH for some paths.
-        process.environment = ProcessInfo.processInfo.environment
+        // The tool needs HOME for its config and keyring, and git on PATH for
+        // some paths; a caller may add to the inherited environment (the board
+        // CLI is told its root this way) but never starts from an empty one.
+        process.environment = environment ?? ProcessInfo.processInfo.environment
 
         let out = Pipe(), err = Pipe()
         process.standardOutput = out

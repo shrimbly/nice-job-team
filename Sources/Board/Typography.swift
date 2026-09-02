@@ -38,6 +38,11 @@ enum Typography {
     private static let pillSize: CGFloat = 9
     /// Carries a PR number, so its digits hold their width.
     static let label = Font.system(size: 9, weight: .medium).monospacedDigit()
+    /// The same face in AppKit terms, for `PRChipColumn`. Monospaced-digit, like
+    /// the SwiftUI font above — measuring with the proportional one comes up short
+    /// on every label with a digit in it, which is all of them.
+    static var labelMeasuring: NSFont { .monospacedDigitSystemFont(ofSize: labelSize, weight: .medium) }
+    private static let labelSize: CGFloat = 9
 
     /// Glyphs, not text, so they sit outside the scale — these are sized to balance
     /// optically against the text beside them.

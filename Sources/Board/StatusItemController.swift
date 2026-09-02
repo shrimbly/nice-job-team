@@ -6,6 +6,7 @@ import SwiftUI
 final class StatusItemController: NSObject, NSApplicationDelegate {
     private let store = BoardStore()
     private let presentation = PanelPresentation()
+    private var systemNotifier: SystemNotifier!
     private var statusItem: NSStatusItem!
     private var window: BoardWindow!
     private var hosting: NSHostingView<BoardPanel>!
@@ -61,6 +62,11 @@ final class StatusItemController: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.store.wakeFromSleep() }
         }
 
+        // Merge/preview notifications: a tap opens the PR or preview through the
+        // same link handler a chip uses. Authorization is asked once here.
+        systemNotifier = SystemNotifier(open: { [weak self] in self?.open($0) })
+        systemNotifier.requestAuthorization()
+        store.notifier = { [weak self] event in self?.systemNotifier.post(event) }
         store.start()
         updateStatusItem()
 
@@ -85,11 +91,12 @@ final class StatusItemController: NSObject, NSApplicationDelegate {
 
     private func updateStatusItem() {
         guard let button = statusItem.button else { return }
-        let needs = store.needsOperatorCount
-        let alert = needs > 0
+        // The rules — which count, which symbol, when to shout — live in
+        // StatusItemModel, where the tests hold them; this just draws.
+        let model = store.statusModel
+        let alert = model.isAlert
 
-        let symbol = alert ? "rectangle.stack.fill" : "rectangle.stack"
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Board")?
+        let image = NSImage(systemSymbolName: model.symbolName, accessibilityDescription: "Board")?
             .withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
         // Template only when quiet: a template image is forced to the menu bar's own
         // colour, which is exactly what would erase the alert tint.
@@ -100,14 +107,11 @@ final class StatusItemController: NSObject, NSApplicationDelegate {
             button.image = image
         }
 
-        let count = alert ? "\(needs)" : "\(store.cards.count)"
-        button.attributedTitle = NSAttributedString(string: " \(count)", attributes: [
+        button.attributedTitle = NSAttributedString(string: " \(model.countText)", attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: alert ? .semibold : .regular),
             .foregroundColor: alert ? Palette.alertNSColor : NSColor.labelColor,
         ])
-        button.toolTip = alert
-            ? "\(needs) of \(store.cards.count) need you"
-            : "\(store.cards.count) open"
+        button.toolTip = model.toolTip
     }
 
     @objc private func statusItemClicked() {
@@ -184,6 +188,7 @@ final class StatusItemController: NSObject, NSApplicationDelegate {
         gap under menu bar   \(screen.visibleFrame.maxY - visibleTop)
         hosting fittingSize  \(hosting.fittingSize)
         contentView bounds   \(window.contentView?.bounds ?? .zero)
+        cards decoded        \(store.cards.count) (\(store.needsOperatorCount) need you, \(store.showsProjects ? "multi" : "single")-project)
         """)
     }
 

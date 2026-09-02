@@ -17,11 +17,14 @@ The status file is the only channel back to the orchestrator. The agent writes i
 reads the agent's chat.
 
 ```bash
-S=~/.claude/skills/superset-implementer/scripts/status.sh
-$S init --item <itemId> --slug <slug>
-$S phase "orienting"
-$S set '{"state":"pr-open"}'
+board status init --item <itemId> --slug <slug>
+board status phase "orienting"
+board status set '{"state":"pr-open"}'
 ```
+
+If `board` is command-not-found, the CLI is not on the PATH. That is a setup
+fault, not the agent's: the operator installs it once
+(`npm install -g <repo>/cli`, or `<repo>/cli/bin` on the login PATH).
 
 The states are `building`, `awaiting-approval`, `pr-open`, `fixing`, and `blocked`.
 
@@ -99,7 +102,7 @@ The bar is a pull request that a careful reviewer approves without asking for a 
 The agent reports what it observes about the ticket. It does not write to the tracker.
 
 ```bash
-$S set '{"linear":{"issue":"ENG-160","observedStatus":"Backlog","expected":"In Review"}}'
+board status set '{"linear":{"issue":"ENG-160","observedStatus":"Backlog","expected":"In Review"}}'
 ```
 
 The orchestrator owns tracker writes. This keeps one writer, so two agents cannot fight

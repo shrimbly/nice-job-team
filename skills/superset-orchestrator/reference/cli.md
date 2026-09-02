@@ -116,7 +116,7 @@ Worktrees live at `~/.superset/worktrees/<projectId>/<workspace-name>`. One bran
 `workspaces delete` is the teardown path — it runs the project's `teardown`
 commands and removes the worktree. It will take uncommitted work with it. Always
 check `git -C <worktreePath> status --porcelain` and the branch's push state first
-(`scripts/reap.sh` does).
+(`board reap` does).
 
 ## Agents
 

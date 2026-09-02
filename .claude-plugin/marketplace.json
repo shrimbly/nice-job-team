@@ -1,0 +1,17 @@
+{
+  "name": "superset-board",
+  "owner": {
+    "name": "Dev",
+    "email": "dev@acme.org"
+  },
+  "description": "Self-hosting marketplace for the superset-board plugin — this repository is the marketplace and its one plugin.",
+  "plugins": [
+    {
+      "name": "superset-board",
+      "source": "./",
+      "description": "The Superset orchestrator board: skills, the scout subagent, and the status-observation Stop hook.",
+      "version": "0.1.0",
+      "category": "productivity"
+    }
+  ]
+}

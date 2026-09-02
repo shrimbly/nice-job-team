@@ -51,11 +51,13 @@ Break any of these and you have become the problem you were built to solve.
 ## Preflight (every session, before anything else)
 
 ```bash
-~/.claude/skills/superset-orchestrator/scripts/preflight.sh
+board doctor
 ```
 
 It checks the Superset CLI, auth, host daemon, `gh` auth, and the board directory,
-seeds `config.json` on first run, and prints a `READY` / `BLOCKED:` verdict. Read
+writes a reference `config.example.json` on an unconfigured machine (never a
+`config.json` — `board init` writes the real one), and prints a `READY` /
+`BLOCKED:` verdict. Read
 the output. If it says `BLOCKED: not logged in`, stop and tell the operator to run
 `superset auth login` themselves (it is a browser OAuth flow — suggest they type
 `! superset auth login`). Do not attempt to work around auth.
@@ -77,14 +79,32 @@ Everything durable lives in `~/.claude/superset-orchestrator/`:
 | `config.json` | operator | repos, project IDs, reviewers, Slack channels, cadence |
 | `board.json` | you | the queue: every item, its state, its workspace, its PR |
 | `board.md` | you | rendered human view, regenerated whenever `board.json` changes |
+| `archive.json` | the `board` CLI | items terminal for over `limits.recentlyClosedDays`, moved by `board archive` |
 | `briefs/<slug>.md` | you | the dispatch brief handed to each agent |
-| `signals/*.json` | scripts + scouts | latest raw poll output |
+| `signals/*.json` | the `board` CLI + scouts | latest raw poll output |
 | `workspaces/<id>.json` | **implementation agents** | each agent's own status file |
 | `log.jsonl` | you | append-only event log (dispatched, gated, merged, closed) |
 
 Read `reference/board.md` for the exact schemas and the state machine. The one
 thing to internalise: **you learn what agents are doing by reading their status
 files, not by messaging them.** Agents write; you read. No IPC, no polling chat.
+
+**Write your own item fields through `board item set`, never with inline edits:**
+
+```bash
+board item set \
+  --item itm_938 --state dispatched --workspace-id <id>       # also --pr, --pr-url,
+                                                              # --outcome, --note
+```
+
+(`board item add --slug <s> --title <t>` creates an item, `board item list` and
+`board item show <id>` read them — no jq needed.)
+
+It refuses unknown states, keeps `pr` in its `{number, url?}` shape, and appends
+the history entry itself. Every board write is schema-validated before it lands;
+a hand-composed edit that would corrupt the board is refused with the reason. A
+hand-written bare number in `pr` once crashed sync for every item at once — that
+is the class of error this closes.
 
 ## The loop
 
@@ -98,15 +118,23 @@ SENSE ──▶ GROUP ──▶ PROPOSE ──[approval]──▶ DISPATCH ─�
 
 ### 1. SENSE — poll everything, in parallel, cheaply
 
-Two tiers. Always run the cheap tier first:
+Two tiers. Always run the cheap tier first, and run it as one command:
 
 ```bash
-~/.claude/skills/superset-orchestrator/scripts/poll.sh          # writes signals/*.json
+board cycle                        # the `board` CLI from the repo's cli/
 ```
 
-That covers GitHub PR state, CI, unresolved review threads, live workspaces, agent
-status files, and session liveness — no model tokens at all. Read the summary it
-prints, not the JSON files it writes.
+That is `reconcile → poll → reap --auto --quiet → archive → render`, in order,
+inside one command. Do not run the pieces by hand in a normal cycle —
+the board drifts precisely when a phase gets forgotten, and forgetting is what
+happened. A failing step is named and the rest still run, so the board always
+reflects whatever did complete.
+
+It covers reconciling the board against status files and PRs, GitHub PR state,
+CI, unresolved review threads, live workspaces, session liveness, reaping
+merged workspaces, archiving long-terminal items, and re-rendering board.html
+and board.md — no model tokens at all. Read the summary it prints, not the
+JSON files it writes.
 
 Then fan out scouts **in one message** for the things that need judgement:
 
@@ -166,14 +194,14 @@ The brief is the whole contract: the agent will not see your context, your
 reasoning, or this conversation. Then:
 
 ```bash
-~/.claude/skills/superset-orchestrator/scripts/dispatch.sh \
-  --slug eng-142-log-table \
-  --branch dev/eng-142-run-history-denser-more-informative-log-table \
+board dispatch \
+  --slug eng-584-data-table \
+  --branch dev/eng-584-audit-page-denser-more-informative-data-table \
   --base main \
   --repo acme/website
 ```
 
-The script creates the workspace with `superset workspaces create --agent claude`,
+The verb creates the workspace with `superset workspaces create --agent claude`,
 points the agent's opening prompt at the brief file, links the Superset task if
 there is one, records the workspace ID into `board.json`, and appends to `log.jsonl`.
 
@@ -184,7 +212,7 @@ never. An issue sitting in Backlog while an agent works it is how two people end
 on the same ticket.
 
 ```
-save_issue(id: "ENG-160", state: "In Progress")
+save_issue(id: "ENG-604", state: "In Progress")
 ```
 
 Three dispatch rules that matter:
@@ -194,7 +222,7 @@ Three dispatch rules that matter:
 - **Keep the prompt short and the brief long.** The opening prompt tells the agent
   to load the `superset-implementer` skill and read its brief file; everything else
   belongs in the brief. Long `--prompt` strings get mangled and cannot be revised.
-- **Board titles are `<TICKET> - <five words max>`.** `dispatch.sh` refuses anything
+- **Board titles are `<TICKET> - <five words max>`.** `board dispatch` refuses anything
   else, and checks the prefix against the item's own `source.externalId` so the board
   and Linear cannot drift. The five-word limit applies to the description only — the
   ticket number is an identifier, not a word.
@@ -207,10 +235,10 @@ Three dispatch rules that matter:
 
   | Write | Not |
   |---|---|
-  | ENG-176 - Remove API key fields | Try it: stop asking a signed-in user for an API key |
-  | ENG-174 - Add requirements filter | Requirements step: add a real filter, stop Enter eating the query |
-  | ENG-171 - Reframe the duplicate toggles | Duplicate toggles: make the two modes look different |
-  | ENG-183 - Region names and scaling copy | Deploy form: readable regions, a default, and the scaling model |
+  | ENG-631 - Remove API key fields | Try it: stop asking a signed-in user for an API key |
+  | ENG-629 - Add requirements filter | Requirements step: add a real filter, stop Enter eating the query |
+  | ENG-623 - Reframe adjust toggles | Adjust toggles: make the two modes look different |
+  | ENG-645 - Region names and scaling copy | Deploy form: readable regions, a default, and the scaling model |
 
   The ticket number goes first so a row can be cross-referenced against Linear without
   opening anything. The full statement of intent goes in `outcome`, which is what the
@@ -220,10 +248,57 @@ For a stacked child, pass `--base <parent-branch>`, and only after the parent's 
 is open. Forking off a branch an agent is still writing gives you a child PR full
 of its parent's diff.
 
+#### Dispatching to the cloud instead of a workspace
+
+Same brief, same board, same review. The agent runs on claude.ai rather than in a
+worktree on this machine.
+
+```bash
+board dispatch --item itm_007 --host cloud
+```
+
+It fires a **routine API trigger**, which returns a session id and URL, and records
+`host: "cloud"` and `session: {id, url}` on the item. It cannot go through
+`claude --cloud`: that flag requires a TTY and refuses any invocation whose stdout
+is piped, which is every invocation a script makes. The one-time routine and token
+setup is in `reference/cloud-sessions.md`, and `board cloud check` says
+whether it is usable.
+
+**Never dispatch one item both ways.** A workspace and a cloud session on the same
+branch race each other into a single PR containing two agents disagreeing.
+
+**Choose by whether done-ness can be settled without looking.** A cloud session has
+no dev server you can open and no preview to click before the PR exists, so it
+suits work a test suite can judge.
+
+| Cloud | Workspace |
+|---|---|
+| Costs this machine nothing — own cap, `limits.maxActiveCloudSessions` | Counts against `limits.maxActiveWorkspaces` |
+| No status file, ever | The status file is the main signal |
+| Gate is a **draft PR** | Gate is `awaiting-approval` |
+| You queue messages at it; you cannot converse | The operator instructs it in its own chat |
+
+Three consequences to hold on to:
+
+1. **The brief is inlined into the fire request.** A cloud agent cannot read
+   `briefs/` on this machine, so the brief must answer every question up front.
+   See the cloud section of `reference/dispatch-brief.md`.
+2. **Its only signal is its PR.** No status file, no liveness. Never report a cloud
+   item as stalled for having no status file — that is its permanent normal state.
+3. **`board reap --auto` leaves cloud items alone**, because there is no workspace to
+   delete. CLOSE for a cloud item is a board write and nothing else.
+
+Steer a running session:
+
+```bash
+board cloud send <session-id> --message "..."
+```
+
+
 ### 5. WATCH — read status, don't interrogate
 
 Every cycle, for each item in `building` / `awaiting-approval` / `pr-open` /
-`fixing`, `poll.sh` has already given you: the agent's own status file, session
+`fixing`, `board cycle` has already given you: the agent's own status file, session
 liveness (mtime of the newest transcript), PR review decision, CI rollup, and
 unresolved thread count. Act on the deltas only:
 
@@ -305,9 +380,9 @@ unrecoverable, or its context is actively wrong (the ticket changed underneath i
 
 ### 6. LAND and CLOSE
 
-The operator merges. When `poll.sh` reports a PR merged:
+The operator merges. When `board cycle` reports a PR merged:
 
-1. Verify the workspace is clean and fully pushed (`reap.sh` does this — it refuses
+1. Verify the workspace is clean and fully pushed (`board reap` does this — it refuses
    to delete otherwise).
 2. **Verify** the Linear issue reached Done — do not assume, and do not set it
    preemptively. The integration moves it within seconds of the merge *when the
@@ -316,7 +391,7 @@ The operator merges. When `poll.sh` reports a PR merged:
    set it only if the integration did not.
 3. Ask for approval to close, then:
    ```bash
-   ~/.claude/skills/superset-orchestrator/scripts/reap.sh --item <id>
+   board reap --item <id>
    ```
    which runs `superset workspaces delete`, deletes the local branch if merged,
    moves the item to `closed`, and logs it.
@@ -325,7 +400,13 @@ The operator merges. When `poll.sh` reports a PR merged:
 
 ## Cadence
 
-You are event-driven with a heartbeat, not a busy loop.
+You are event-driven with a heartbeat, not a busy loop. The one command a
+wakeup prompt or a cron entry needs is `board cycle` — it runs the whole
+maintenance pass and renders the board, so a cycle that fires while you are
+away still keeps the board true. For an always-on heartbeat, `board watch
+--install` registers a per-project login service (launchd/systemd) that runs
+`board watch --start` — the supervised loop — and `board watch --status` says
+whether it is alive.
 
 - Interactive session: after each cycle, `ScheduleWakeup` with
   `delaySeconds` matched to what you are actually waiting for — 300–600s while CI
@@ -349,7 +430,7 @@ or a merge that unblocks a stack. Never notify to say "still building".
 
 Say so in one line, fix the board, and continue. The board is the source of truth
 about what is happening; your memory of it is not. When they disagree, re-run
-`poll.sh` and believe the board.
+`board cycle` and believe the board.
 
 ## Reference
 

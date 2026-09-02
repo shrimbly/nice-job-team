@@ -88,6 +88,16 @@ enum Motion {
     }
 
     static func toastLetterBlur(reduceMotion: Bool) -> CGFloat { reduceMotion ? 0 : 3 }
+
+    /// The rows of the stack menu, out of the same blur on the same delay as the
+    /// confirmation's letters — the menu rises the same way, so it resolves the same
+    /// way. The step is three times the letters' 10ms: those have to arrive as one
+    /// word, and these are separate things to choose between, which is the 30–80ms
+    /// band a list belongs in.
+    static func menuRow(index: Int, reduceMotion: Bool) -> Animation {
+        guard !reduceMotion else { return easeOut(0.1) }
+        return easeOut(0.14).delay(0.09 + Double(index) * 0.03)
+    }
 }
 
 /// The confirmation's entrance: straight up out of the chip it came from, unwinding

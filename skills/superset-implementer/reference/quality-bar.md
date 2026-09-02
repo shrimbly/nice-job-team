@@ -66,6 +66,9 @@ gate, not after.
 - [ ] Commit messages in the repo's own style, each one a coherent step.
 - [ ] PR body: what changed, why, how verified, what to look at hardest, screenshots
       for visual work.
+- [ ] PR body reads direct, brief and succinct, per the `simple-english` skill: active
+      voice, one fact per sentence, no padding words, no `should`/`may`/`could`,
+      measurable results rather than adjectives.
 - [ ] Anything you chose not to do is named, with the reason.
 
 ## Automatic fails

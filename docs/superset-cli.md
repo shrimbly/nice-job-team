@@ -101,7 +101,7 @@ including projects that have nothing to do with this repository.
 A project's main workspace points at the main checkout, not at a worktree. Deleting it
 deletes the repository.
 
-`reap.sh` refuses it. The test compares the two git directories, which match only in the
+`board reap` refuses it. The test compares the two git directories, which match only in the
 main checkout:
 
 ```bash
@@ -112,7 +112,7 @@ main checkout:
 
 A branch named `dev/eng-181-…` creates
 `worktrees/<project>/dev/eng-181-…`. Deleting the leaf leaves an empty `dev/`
-directory. `reap.sh` prunes empty parents, and never climbs above the worktrees root.
+directory. `board reap` prunes empty parents, and never climbs above the worktrees root.
 
 ## Related tools
 

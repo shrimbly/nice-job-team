@@ -42,9 +42,10 @@ SENSE ──▶ GROUP ──▶ PROPOSE ──[approval]──▶ DISPATCH ─�
   └────────────────────────────────────────────────────────┘
 ```
 
-**SENSE** collects the state of the world. A shell script gets pull request state,
-continuous integration results, review threads, live workspaces, and agent status files.
-This costs no model tokens. Scouts then answer the questions that need judgment.
+**SENSE** collects the state of the world. `board poll` gets pull request state,
+continuous integration results, review threads, live workspaces, agent status files,
+and the tracker backlog. This costs no model tokens. Scouts then answer the
+questions that need judgment.
 
 **GROUP** turns signals into items. One item is one area of work, one reviewer, and one
 pull request. Signals that describe the same change become one item. Work that spans
@@ -86,7 +87,7 @@ files. This is the whole protocol.
 
 The design has one failure mode that you must plan for. An agent writes its status when it
 starts a piece of work. It often forgets to write again when the work finishes, so a stale
-status says "fixing" long after the fix landed. For this reason the synchronize script
+status says "fixing" long after the fix landed. For this reason `board reconcile`
 trusts observable pull request state over the status file. See `board.md`.
 
 ## What the orchestrator never does

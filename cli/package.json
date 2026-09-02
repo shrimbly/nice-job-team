@@ -1,0 +1,27 @@
+{
+  "name": "superset-board",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "board": "bin/board",
+    "superset-board": "bin/board"
+  },
+  "scripts": {
+    "build": "tsc && node -e \"const fs=require('node:fs');fs.mkdirSync('dist/assets',{recursive:true});fs.copyFileSync('src/assets/config.example.json','dist/assets/config.example.json')\"",
+    "test": "vitest run",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "^5",
+    "vitest": "^3"
+  }
+}

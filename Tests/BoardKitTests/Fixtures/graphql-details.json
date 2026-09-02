@@ -12,16 +12,16 @@
         "comments": {
           "nodes": [
             {
-              "body": "Automated review: no blocking issues found in this diff.\n\n[Preview](https://website-git-dev-river-water-acme.vercel.app)"
+              "body": "Preview ready: https://acme-git-calm-billing.vercel.app — take a look."
             },
             {
-              "body": "Deployment ready. Preview is available for this commit."
+              "body": "Preview ready: https://acme-git-calm-billing.vercel.app — take a look."
             },
             {
-              "body": "Deployment ready. Preview is available for this commit."
+              "body": "Preview ready: https://acme-git-calm-billing.vercel.app — take a look."
             },
             {
-              "body": "Confirmed against the preview, the empty state renders correctly now."
+              "body": "green and clean, ready for review"
             }
           ]
         }
@@ -34,16 +34,16 @@
         "comments": {
           "nodes": [
             {
-              "body": "Could this move into the helper so the two call sites agree?"
+              "body": "Preview ready: https://acme-git-tidy-reports.vercel.app — take a look."
             },
             {
-              "body": "Automated review: no blocking issues found in this diff.\n\n[Preview](https://website-git-dev-eng-594-fern-water-acme.vercel.app)"
+              "body": "Preview ready: https://acme-git-tidy-reports.vercel.app — take a look."
             },
             {
-              "body": "Confirmed against the preview, the empty state renders correctly now."
+              "body": "Preview ready: https://acme-git-tidy-reports.vercel.app — take a look."
             },
             {
-              "body": "Could this move into the helper so the two call sites agree?"
+              "body": "working on the audit search"
             }
           ]
         }
@@ -56,19 +56,19 @@
         "comments": {
           "nodes": [
             {
-              "body": "Automated review: no blocking issues found in this diff."
+              "body": "Preview ready: https://acme-git-swift-audit.vercel.app — take a look."
             },
             {
-              "body": "This branch is behind main — rebase before merging.\n\n[Preview](https://website-git-dev-eng-597-stone-fern-acme.vercel.app)"
+              "body": "Preview ready: https://acme-git-swift-audit.vercel.app — take a look."
             },
             {
-              "body": "This branch is behind main — rebase before merging."
+              "body": "Preview ready: https://acme-git-swift-audit.vercel.app — take a look."
             },
             {
-              "body": "Deployment ready. Preview is available for this commit."
+              "body": "green and clean, ready for review"
             },
             {
-              "body": "Could this move into the helper so the two call sites agree?"
+              "body": "working on the audit audit"
             }
           ]
         }
@@ -81,13 +81,13 @@
         "comments": {
           "nodes": [
             {
-              "body": "Looks good. One thought on the naming here, otherwise ship it.\n\n[Preview](https://website-git-dev-eng-595-tide-north-acme.vercel.app)"
+              "body": "Preview ready: https://acme-git-amber-members.vercel.app — take a look."
             },
             {
-              "body": "This branch is behind main — rebase before merging."
+              "body": "Preview ready: https://acme-git-amber-members.vercel.app — take a look."
             },
             {
-              "body": "Confirmed against the preview, the empty state renders correctly now."
+              "body": "Preview ready: https://acme-git-amber-members.vercel.app — take a look."
             }
           ]
         }
@@ -100,13 +100,13 @@
         "comments": {
           "nodes": [
             {
-              "body": "Nit: the guard reads clearer as an early return."
+              "body": "Preview ready: https://acme-git-nimble-billing.vercel.app — take a look."
             },
             {
-              "body": "Automated review: no blocking issues found in this diff.\n\n[Preview](https://website-git-dev-eng-584-loop-north-acme.vercel.app)"
+              "body": "Preview ready: https://acme-git-nimble-billing.vercel.app — take a look."
             },
             {
-              "body": "Deployment ready. Preview is available for this commit."
+              "body": "Preview ready: https://acme-git-nimble-billing.vercel.app — take a look."
             }
           ]
         }

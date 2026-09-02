@@ -1,5 +1,11 @@
 # Lessons
 
+> Historical note (P3): the scripts this file names — `dispatch.sh`, `reap.sh`,
+> `autoreap.sh`, `cloud.sh`, `watch.sh`, `sync.sh`, `poll.sh` — now live in the
+> TypeScript CLI in `cli/` as `board dispatch`, `board reap [--auto]`,
+> `board cloud`, `board watch`, `board reconcile` and `board poll`. Every guard
+> below is preserved there; the lessons stand as written.
+
 Each guard in the scripts exists because something failed. Before you remove a guard,
 read this file. Most guards look unnecessary until you know what they prevent.
 

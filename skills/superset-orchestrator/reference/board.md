@@ -7,9 +7,11 @@
 ├── config.json                 # operator-owned settings
 ├── board.json                  # canonical queue (you own this)
 ├── board.md                    # rendered view (regenerate on every change)
+├── archive.json                # items terminal for > limits.recentlyClosedDays
+│                               # (board archive moves them; nothing is deleted)
 ├── briefs/<slug>.md            # dispatch briefs and feedback briefs
 ├── signals/
-│   ├── github.json             # latest poll.sh output
+│   ├── github.json             # latest `board poll` output
 │   ├── github.prev.json        # previous, for delta detection
 │   ├── workspaces.json         # live workspaces + status files + liveness
 │   ├── linear.json             # latest Linear scout output
@@ -18,8 +20,12 @@
 └── log.jsonl                   # append-only event log
 ```
 
-Write `board.json` atomically (`tmp` + `mv`) — an automation run and an interactive
-session can both be holding it.
+Write `board.json` through `board item set` —
+never with a hand-composed edit. Every write is atomic, locked, and validated
+against the schema below before it replaces the file: `pr` must be null or
+`{number, url?}`, every item needs id/slug/title/state, and history entries need
+`at`/`to`. A write that would corrupt the board is refused with the reason — a
+bare number written into `pr` by hand once crashed sync for every item at once.
 
 ## Item state machine
 
@@ -39,14 +45,24 @@ session can both be holding it.
 | `pr-open` | reviewer | PR open, reviewer assigned | changes requested / CI red → `fixing`; merged → `merged` |
 | `fixing` | agent | addressing review feedback or a red build | pushed and re-requested review → `pr-open` |
 | `blocked` | operator | agent cannot proceed without an answer | answer relayed → back to previous state |
+| `ready` | **operator** | approved, green, no conflicts — one click from merged | sync moves it back to `pr-open` if that stops being true |
 | `merged` | you | PR merged | workspace reaped → `closed` |
 | `orphaned` | you | workspace vanished while item open | recreated → `dispatched`, or → `rejected` |
-| `rejected` / `closed` | — | terminal | — |
+| `rejected` / `closed` / `abandoned` | — | terminal | archived after `limits.recentlyClosedDays` |
+
+(`ready` is written by `board reconcile` when a PR is approved, green and mergeable;
+`abandoned` is for cancelled work whose workspace was reaped with `--abandon`.)
 
 Only two transitions are yours to make unilaterally: `proposed → rejected` (when a
 scout shows the item is already done or duplicated) and `merged → closed` after
-`reap.sh` verifies the workspace is clean. Everything else follows an agent's status
+`board reap` verifies the workspace is clean. Everything else follows an agent's status
 file, a poll result, or an operator decision.
+
+Terminal items leave every "in flight" view immediately. For
+`limits.recentlyClosedDays` (default 7) they render as one line under
+"Recently closed" in `board.md`; after that, `board archive` — run by `board cycle`
+every pass — moves them to `archive.json`. Nothing is ever deleted: the log
+keeps its history, it just stops occupying the board.
 
 ## `board.json`
 
@@ -57,7 +73,7 @@ file, a poll result, or an operator decision.
   "items": [
     {
       "id": "itm_007",
-      "slug": "eng-142-log-table",
+      "slug": "eng-142-data-table",
       "title": "Denser, more informative audit log table",
       "domain": "run-history",
       "state": "pr-open",
@@ -65,13 +81,13 @@ file, a poll result, or an operator decision.
       "source": { "kind": "linear", "externalId": "ENG-142", "url": "https://linear.app/acme/issue/ENG-142/…" },
       "outcome": "The run history table fits ~40% more rows and each row states its own timing without a hover.",
       "repo": "acme/website",
-      "branch": "dev/eng-142-run-history-denser-more-informative-log-table",
+      "branch": "dev/eng-142-run-history-denser-more-informative-data-table",
       "baseBranch": "main",
       "blockedBy": null,
       "stackParent": null,
       "workspaceId": "3f1c…",
       "supersetTaskId": null,
-      "briefPath": "~/.claude/superset-orchestrator/briefs/eng-142-log-table.md",
+      "briefPath": "~/.claude/superset-orchestrator/briefs/eng-142-data-table.md",
       "pr": {
         "number": 441,
         "url": "https://github.com/acme/website/pull/441",
@@ -98,7 +114,9 @@ Rules:
   write it, the item is not ready to dispatch.
 - `blockedBy` is for hard dependencies of any kind. `stackParent` is specifically
   "branch off this item's branch" and implies `blockedBy`.
-- Never delete items. Terminal states stay for the log.
+- Never delete items. Terminal states stay on the board for
+  `limits.recentlyClosedDays`, then `board archive` moves them to `archive.json` —
+  moved, not lost.
 
 ## `workspaces/<workspaceId>.json` — written by the agent
 
@@ -109,7 +127,7 @@ The implementation agent owns this file end to end; you only read it.
   "version": 1,
   "workspaceId": "3f1c…",
   "itemId": "itm_007",
-  "slug": "eng-142-log-table",
+  "slug": "eng-142-data-table",
   "branch": "dev/eng-142-…",
   "state": "awaiting-approval",
   "updatedAt": "2026-07-30T08:41:03Z",
@@ -127,9 +145,28 @@ The implementation agent owns this file end to end; you only read it.
   "blockedReason": null,
   "pr": { "number": null, "url": null },
   "needsOperator": true,
-  "lastAgentSessionId": "…"
+  "lastAgentSessionId": "…",
+  "observedAt": "2026-07-30T08:52:17Z",
+  "git": {
+    "branch": "dev/eng-142-…",
+    "dirty": 0,
+    "ahead": 0,
+    "head": "3e91c4a",
+    "headCommittedAt": "2026-07-30T08:40:51Z"
+  }
 }
 ```
+
+Two fields are not the agent's: `observedAt` and `git` are written by the plugin's
+Stop hook (`board status observe`) every time the agent's session stops. They are
+observed facts — current branch, `dirty` as a count of uncommitted paths, `ahead`
+as commits not pushed to the upstream (`null` when there is no upstream to compare
+against), the short `head` sha and its commit time — and the hook never touches
+`updatedAt` or any field the agent wrote. `board reconcile` uses them for one
+thing: when a fresh status file still claims `fixing`/`building` but the PR is
+healthy and the observation is strictly newer than `updatedAt` with `dirty: 0` and
+`ahead: 0`, the claim is provably stale and the item returns to `pr-open` under the
+history string `sync: PR healthy, observed clean`.
 
 `needsOperator: true` is the flag that should make you notify. `questions` is how a
 `blocked` agent asks — relay them verbatim; do not answer on the operator's behalf

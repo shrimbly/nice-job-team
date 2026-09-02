@@ -45,9 +45,15 @@ torn read of those costs one cycle and nothing more.
 }
 ```
 
+An item dispatched to the cloud carries `host: "cloud"` and
+`session: {id, url}` in place of `workspaceId`, and never gains a status file —
+the agent runs on hosted infrastructure and cannot write to this machine. Its
+state comes from GitHub alone. An item with no `host` is local, which every item
+written before cloud dispatch existed is.
+
 ### Titles
 
-A title has the form `<TICKET> - <five words maximum>`. `dispatch.sh` refuses any other
+A title has the form `<TICKET> - <five words maximum>`. `board dispatch` refuses any other
 form.
 
 A reader reads the board at a glance, in a narrow column. A title long enough to explain
@@ -84,82 +90,106 @@ Put the full statement of intent in `outcome`. The body of the card shows that f
 approved-and-waiting. The one case that needs the operator looked the same as the five
 cases that do not.
 
-## The scripts
+## The commands
 
-Each script is in `skills/superset-orchestrator/scripts/`.
+Every command is a verb of the `board` CLI, built from `cli/`. The shell
+scripts they replaced are gone.
 
-| Script | Job |
+| Command | Job |
 |---|---|
-| `setup.sh` | detect the repository, then merge it into `config.json` |
-| `preflight.sh` | test the CLI, the authentication, the host daemon, and the board directory |
-| `poll.sh` | collect pull request state, continuous integration, threads, workspaces, agent status |
-| `sync.sh` | fold what the agents and GitHub know back into the board |
-| `dispatch.sh` | create a workspace, start an agent, record the item |
-| `reap.sh` | delete a workspace after its work lands |
-| `autoreap.sh` | reap the workspaces that the orchestrator created, without a question |
-| `render-board.sh` | write `board.md` and `board.html` |
-| `watch.sh` | run one cycle for each interval, in the background |
+| `board init` | detect the repository, then merge it into the config (`--show`, `--detect`, `--apply`; `--apply --split` and `--migrate` for the split layout — see [config.md](config.md)) |
+| `board doctor` | test the CLI, the authentication, the host daemon, and the board directory |
+| `board poll` | collect pull request state, continuous integration, threads, workspaces, agent status, and the tracker backlog |
+| `board tasks` | read and index the markdown backlog, when the tracker is markdown |
+| `board cloud` | start and steer a Claude Code session on the web (`check`, `enable`, `send`, `fire`) |
+| `board reconcile` | fold what the agents and GitHub know back into the board |
+| `board item set` | write one item's fields, with the state and shape checks (`add`, `list`, `show` too) |
+| `board dispatch` | create a workspace, start an agent, record the item |
+| `board reap` | delete a workspace after its work lands |
+| `board reap --auto` | reap the workspaces that the orchestrator created, without a question |
+| `board archive` | move long-terminal items to `archive.json` |
+| `board render` | write `board.md`, `board.html` and `cards.json` per project, plus the merged root-level `cards.json` |
+| `board refresh` | poll, then render — never reconciles, so a read-only client (the menu-bar app) can call it; `--render-only` skips the poll, `--repos` needs no orchestrator root at all |
+| `board dump` | print the cards.json v2 document without touching disk |
+| `board cycle` | run all the maintenance steps once, in order |
+| `board watch` | run one cycle for each interval, as a supervised loop or login service |
 
 ## How the board stays correct
 
 Five things drift. Each one has a guard.
 
-**An agent completes the work and does not write its status.** `sync.sh` compares the
+**An agent completes the work and does not write its status.** `board reconcile` compares the
 status file against the live pull request state. If the pull request is open, has no conflict, and holds no unresolved question for
 us, the work is complete. Even when
 the file says something else, this rule holds. The board then records `sync: PR healthy, status
 file stale`.
 
+A fresh status file normally holds that rule off — the agent may really be mid-fix. But the
+plugin's Stop hook writes an observation into the same file each time the agent's session
+stops: `observedAt`, and a `git` object with `branch`, `dirty` (a count of uncommitted
+paths), `ahead` (commits not pushed to the upstream, or `null` without one), `head` and
+`headCommittedAt`. When that observation is newer than the agent's own `updatedAt` and shows
+`dirty: 0` and `ahead: 0`, a fresh claim of `fixing` or `building` on a healthy pull request
+is provably stale, and `board reconcile` returns the item to `pr-open` under `sync: PR
+healthy, observed clean`. The hook records facts only; it never touches `updatedAt` or any
+field the agent wrote.
+
 **A review thread that we already answered looks like an open question.** A count of the
-unresolved threads is not enough. `poll.sh` reads the last comment in each thread. It
+unresolved threads is not enough. `board poll` reads the last comment in each thread. It
 compares the author of that comment against `operator.githubLogins`. It reports `asks`,
 where a reviewer spoke last, apart from `awaiting-rereview`, where we spoke last.
 Without this division, each answered review makes a pull request look blocked.
 
 **A merged pull request with no workspace stays at `pr-open` forever.** Automatic reap
-reads only the items that still hold a workspace. `poll.sh` therefore collects the
-recently merged pull requests as well as the open ones. `sync.sh` closes an item whose
+reads only the items that still hold a workspace. `board poll` therefore collects the
+recently merged pull requests as well as the open ones. `board reconcile` closes an item whose
 number is in that list. Absence from the open list is not enough on its own. A rename, a change of
 permission, and a failed poll all look the same.
 
 The merged query returns the last 20. A pull request that merged before those 20, and
 whose item never caught up, stays where it is.
 
-**A status file outlives its workspace.** When a workspace no longer exists, `sync.sh`
+**A status file outlives its workspace.** When a workspace no longer exists, `board reconcile`
 deletes its status file. Two guards apply. The test runs only on a workspace list
-that is not empty, so one authentication failure cannot delete every file. `sync.sh`
+that is not empty, so one authentication failure cannot delete every file. The reconcile
 also deletes only a file that this board claims, because each project on the host shares
 the inbox. "Not in my live list" also describes the agents of every other project.
 
-**A workspace stays alive on a closed item.** `sync.sh` gives a warning and does
+**A workspace stays alive on a closed item.** `board reconcile` gives a warning and does
 nothing, because some of these workspaces hold unpushed work. The warning names the reap
-command. `sync.sh` skips the main checkout, which `reap.sh` refuses to delete by design.
+command. The reconcile skips the main checkout, which `board reap` refuses to delete by design.
 
 ## Maintenance
 
 To run one cycle by hand, use this command:
 
 ```bash
-~/.claude/skills/superset-orchestrator/scripts/watch.sh --once
+board cycle
 ```
+
+`board watch --once` runs the same steps, and also writes `watch.log` and
+`events.log`.
 
 To read the state of the poller, use this command:
 
 ```bash
-~/.claude/skills/superset-orchestrator/scripts/watch.sh --status
+board watch --status
 ```
 
 `--status` judges the poller by the time of its last write. It does not judge the poller
 by the presence of a process. A live process is not a poller that works. If the log is
 older than three intervals, the command reports `STALLED` and gives the restart commands.
 
-If the board becomes invalid, `preflight.sh` makes a backup and builds a new board. Each
-write goes through `atomic_json`. That helper reads the result before it replaces the
-file, so a failed edit leaves the board unchanged.
+If the board becomes invalid, `board doctor` makes a backup and builds a new board. Each
+write is validated and written atomically — a failed edit leaves the board unchanged.
 
 ## Reading the board
 
 `board.md` is a table. `board.html` is a dashboard. It reloads itself, and it links to
 the pull request, the ticket, the preview deployment, and the Superset workspace.
 
-The macOS application in this repository shows the same board in the menu bar.
+`cards.json` is the machine-readable board — a v2 document with one `projects`
+array (per-project files hold that one project; the root-level file merges
+every discovered project, cards ordered by urgency across all of them). The
+macOS application in this repository is a thin client of it: it spawns
+`board refresh`, reads the root `cards.json`, and draws that in the menu bar.

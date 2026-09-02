@@ -60,6 +60,40 @@ gh pr create --repo <owner/name> --base <base> \
 Title in the repo's own convention — read `git log --oneline -20` and match it.
 Never open a draft unless the brief asks: reviewers skip drafts.
 
+### How the body must read
+
+**Load the `simple-english` skill before you write the body, and follow it.** The
+orchestrator installs it — see `board init`.
+
+The reviewer is the scarcest thing in this workflow. Their capacity, not the number
+of agents, is what caps throughput. A body that takes three minutes to read costs
+more than the change it describes. Agents also write the same padding every time:
+"This PR aims to comprehensively improve...", "It's worth noting that...", "This
+change leverages...". None of it carries a fact.
+
+The rules that matter here:
+
+- Write direct, brief, succinct prose. One fact per sentence.
+- Instructions stay under 20 words. Explanations stay under 25.
+- Active voice, simple tenses. Not "has been refactored" — "I moved it".
+- `must` and `can` only. Never `should`, `may`, `might`, `could`.
+- Delete `simply`, `just`, `robust`, `comprehensive`, `seamlessly`, `leverage`,
+  `in order to`, `it is worth noting that`.
+- Never `e.g.`, `i.e.`, `etc.` Write `for example`, `that is`, or name the items.
+- No semicolons. Write two sentences.
+- Code, identifiers, commands, paths and quoted errors are untouchable. Leave them
+  exact, whatever the word rules say.
+
+State the measurable result, never the adjective for it.
+
+| Do not write | Write |
+|---|---|
+| This PR comprehensively refactors the runs table to be more performant. | The runs table renders 26 rows at 900px, up from 18. |
+| It's worth noting that the sticky header logic may need attention. | The sticky header offset is load-bearing. Read the padding math in `RunsTable.vue`. |
+| Tests have been run and are passing. | `npm run test:unit` — 214 passed, 0 failed. |
+
+The headings stay as they are. This governs the prose under them.
+
 ## 3. Reviewer
 
 ```bash
@@ -73,7 +107,7 @@ for nothing. Team handles use `--add-reviewer org/team-slug`.
 Then record it:
 
 ```bash
-~/.claude/skills/superset-implementer/scripts/status.sh pr <n> <url>
+board status pr <n> <url>
 ```
 
 ## 4. Reading feedback properly
@@ -110,7 +144,7 @@ gh api -X POST "repos/<owner>/<name>/pulls/<n>/comments/<commentId>/replies" \
 - Do not resolve threads. The reviewer resolves; resolving your own reads as
   dismissing the comment.
 - Disagree at most once per thread, with the reason. Then comply, unless it is a
-  correctness or safety problem — those escalate through `status.sh ask`.
+  correctness or safety problem — those escalate through `board status ask`.
 - Never argue about style the repo has already settled.
 
 ## 6. Red CI
@@ -147,7 +181,7 @@ gh pr edit <n> --repo <owner/name> --add-reviewer <login>
 ```
 
 (`--add-reviewer` on an existing reviewer re-requests.) Then
-`status.sh state pr-open` and stop. Do not nudge in Slack unless the operator asks.
+`board status state pr-open` and stop. Do not nudge in Slack unless the operator asks.
 
 ## 9. Merge
 
@@ -155,7 +189,7 @@ You never merge. Not `gh pr merge`, not the web UI, not "it's approved and green
 I'll just land it". The operator merges. When you see it merged:
 
 ```bash
-~/.claude/skills/superset-implementer/scripts/status.sh state merged "merged as #<n>"
+board status state merged "merged as #<n>"
 ```
 
 Leave the tree clean and pushed, and leave the workspace alone — the orchestrator

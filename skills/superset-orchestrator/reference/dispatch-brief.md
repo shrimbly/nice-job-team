@@ -29,7 +29,7 @@ cannot.
 - **Item:** itm_007
 - **Source:** Linear ENG-142 — https://linear.app/acme/issue/ENG-142/…
 - **Repo:** acme/website (worktree you are already in)
-- **Branch:** dev/eng-142-run-history-denser-more-informative-log-table
+- **Branch:** dev/eng-142-run-history-denser-more-informative-data-table
 - **Base:** main
 - **Reviewer (when the operator approves the PR):** @octocat
 - **Domain:** run-history
@@ -101,7 +101,29 @@ on the PR is how this gets looked at.
 - [ ] Manually verified in a browser, with the numbers recorded
 - [ ] Diff contains nothing outside Scope
 - [ ] Status file at `awaiting-approval` with summary, diffstat, risks
+- [ ] PR body written to the `simple-english` skill: direct, brief, succinct
 ````
+
+## Briefs for cloud sessions
+
+A brief dispatched with `--host cloud` runs on claude.ai, where nobody is attached
+and there is no status file. Two changes to how you write it:
+
+- **Leave nothing to ask about.** Every question the brief does not answer costs a
+  round trip through a browser tab. Say what to do when the obvious approach does
+  not work, and name the fallback you would accept.
+- **State the constraints the worktree used to imply.** A local agent learns "no
+  dev server here" from its environment. A cloud session has a different one, so
+  put the verification you actually expect into the brief.
+
+The Definition of done gets one extra line, because the draft PR replaces the gate:
+
+```markdown
+- [ ] Draft PR opened, with every judgement call recorded in the body
+```
+
+Everything else is the same. The same brief works on both hosts; a cloud brief is
+just one that survives having no one to ask.
 
 ## Feedback briefs
 

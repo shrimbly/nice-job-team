@@ -1,140 +1,316 @@
-# Nice job team
+# Superset Board
 
-Nice job team runs many coding agents at the same time. A macOS menu bar app shows
-you what each agent does.
+An orchestrated agent workflow you can install. One orchestrator agent holds a
+queue of work; many implementation agents each deliver one pull request from
+their own git worktree; a board shows every card — PR state, CI, review
+threads, agent liveness — ordered by what needs you. The TypeScript CLI in
+`cli/` (the `board` command, zero runtime dependencies, Node >= 20) owns all
+of it: polling GitHub and Superset, the board state, the card model, and the
+rendered dashboards. The repository doubles as a Claude Code plugin carrying
+the agent skills, the read-only scout subagent and the status Stop hook, and
+an optional macOS menu-bar app draws the same board from the CLI's
+`cards.json`.
 
-## How it works
+```
+┌──────────────────────────────────────────────────┐
+│ Board                    ● 8 open · 2 need you   │
+├──────────────────────────────────────────────────┤
+│ Region names and scaling copy     [IN REVIEW]  ⌄ │
+│ PR-508  ENG-645  Preview                         │
+│ Adjust access to vendor mo…    [NEEDS YOU]  ⌄ │
+│ ●eng-607-vendor-adjust  ENG-607               │
+│ Test-this-deployment card: sa…    [DRAFT]      ⌄ │
+│ PR-470  ENG-609  Preview                         │
+├──────────────────────────────────────────────────┤
+│ polled just now                   Refresh   Quit │
+└──────────────────────────────────────────────────┘
+```
 
-One orchestrator agent holds the queue. It writes the briefs and it reads the
-results. It never writes product code.
+## Install
 
-Many implementation agents write the code. Each agent works in its own git worktree,
-on one branch, and delivers one pull request.
+Everything installs from a clone. There is **no published npm package** yet,
+and the clone in front of you may have **no public remote** — the public
+mirror is a separate export — so the commands below name paths, and every one
+of them works against a plain local checkout.
 
-A scout agent collects signal from Linear, Slack, or GitHub. It returns JSON. It
-never changes anything.
+**1. The plugin.** The agent side — the three skills, the `superset-scout`
+subagent, and the status-observation Stop hook — installs as a Claude Code
+plugin. The repository is its own single-plugin marketplace:
 
-The state is a file on disk, not a chat. A context reset costs nothing, because the
-next session reads the same file.
+```sh
+claude plugin marketplace add /path/to/superset-board   # or owner/repo, or a git URL
+claude plugin install superset-board@superset-board -y
+```
 
-This workflow ran up to eight agents at the same time on a real product.
+**2. The CLI.** The plugin does not carry the `board` binary itself; install
+it from the `cli/` package. The `npm install` first is required: packing the
+directory runs the `prepare` build, and a fresh clone has no devDependencies
+for `tsc` to come from:
 
-<img width="1003" height="636" alt="image" src="https://github.com/user-attachments/assets/df45e733-0ba0-40bd-a1ac-0fc51902fecc" />
+```sh
+cd /path/to/superset-board/cli && npm install && npm install -g .
+```
 
+(`npm install -g github:<owner>/<repo>` would also work — but only against a
+repository that has a public remote to fetch from, which this clone may not.
+The path form above always holds.)
 
-## What is in this repository
+The `board` verbs need the CLI on the **login** PATH, not just this shell:
+dispatched implementation agents open their own shells and write their status
+files with the same `board` command.
 
-| Directory | Contents |
+**3. Verify.** The first command to run, always:
+
+```sh
+board doctor
+```
+
+It checks git, the GitHub CLI, the Superset CLI and its login, seeds the
+board directory, and prints READY or BLOCKED with the fix named.
+
+Packaging details, the no-install dev loop, and what the Stop hook does are
+in [README-PLUGIN.md](README-PLUGIN.md).
+
+## Quickstart
+
+From inside the repository you want orchestrated:
+
+```sh
+board init --detect      # print what can be detected — changes nothing
+board init --apply --repo owner/name --reviewer <login>
+```
+
+The `superset-setup` skill drives these two for you and asks only for what
+cannot be detected. A first `--apply` that names no `--tracker` defaults to
+**GitHub Issues** — the repo's own backlog, read with the `gh` you already
+have; `--tracker linear|markdown` chooses the others. Configuration lands in
+`~/.claude/superset-orchestrator/config.json` (the legacy single file, still
+the default and fully supported) — or in the split machine + project layout
+via `--apply --split` / `board init --migrate`; see [docs/config.md](docs/config.md).
+
+Then start the poller and look at the board:
+
+```sh
+board watch --install    # register the poller as a login service (launchd/systemd)
+board cycle --open       # one full maintenance cycle, then open board.html
+```
+
+**Optional, macOS:** the menu-bar app, so a count and a tint can tell you
+something needs you without you going to look:
+
+```sh
+make install             # build dist/NiceJobTeam.app, copy to ~/Applications
+```
+
+Needs Swift 6.1+ and no Xcode — see [The menu-bar app](#the-menu-bar-app).
+
+## The workflow this board watches
+
+The board is one view onto an orchestrated agent workflow: one orchestrator
+agent holds the queue, and many implementation agents each deliver one pull
+request from one git worktree.
+
+That workflow is documented in [`docs/`](docs/), and the agent contracts are
+in [`skills/`](skills/) so they can be copied to another project.
+
+- [docs/README.md](docs/README.md) — start here, and how to adopt it
+- [docs/workflow.md](docs/workflow.md) — the model, the roles, the loop
+- [docs/board.md](docs/board.md) — the board file, its states, its commands
+- [docs/config.md](docs/config.md) — the config layouts, legacy and split
+- [docs/lessons.md](docs/lessons.md) — why each guard exists
+
+## The menu-bar app
+
+A native macOS menu-bar app for the same board: one compact card per task/PR,
+refreshed without being asked, with links out to the PR, its ticket, its
+preview deployment and the Superset workspace holding the work. Each card is
+two fixed rows — title, then links — so every card is the same height. The
+status pill sits top right, in its own column to scan down.
+
+The app is a **thin client of the `board` CLI**: a refresh spawns
+`board refresh` (which owns `gh`, the card logic and the stack folding), reads
+the root-level `cards.json` it wrote, and draws that. Refresh is every 60
+seconds, plus **when the Mac wakes** and **when you open the panel** on data
+older than an interval. "polled Xm ago" in the footer comes from the
+document's own `generatedAt`, so it reports when the board was actually
+polled. While a refresh is failing it retries after 15 seconds, then backs off
+by doubling to a ten-minute ceiling; the last good `cards.json` keeps the
+cards up rather than going blank, and when the CLI itself had to degrade (a
+`gh` call failed mid-poll) the document's `note` says so and the footer shows
+it.
+
+### Build and install
+
+There is no Xcode on the target machine — only Command Line Tools — so the
+`.app` is assembled by hand from the SwiftPM binary. There is no
+`.xcodeproj`, and `xcodebuild` is not used.
+
+```sh
+make            # build and assemble dist/NiceJobTeam.app
+make run        # ...and launch it
+make install    # copy it to ~/Applications
+make test       # swift test
+```
+
+Needs Swift 6.1+ (`swift --version`). The app shells out to the `board` CLI,
+which owns the `gh` calls, so it stores no token of its own.
+
+To start it at login: System Settings → General → Login Items → **+** →
+`~/Applications/NiceJobTeam.app`.
+
+**Gatekeeper.** The app is unsigned, so the first launch from
+`~/Applications` may be refused. Right-click the app → **Open** → **Open**,
+or System Settings → Privacy & Security → **Open Anyway**. Launching from
+`make run` in the build directory is not usually challenged.
+
+**Menu-bar managers.** Ice, Bartender and the like put new items in their
+hidden section by default; move the Board item out the usual way (⌘-drag, or
+the manager's own settings).
+
+### Using it
+
+- **Click the menu-bar item** for the panel. **Right-click** for Refresh and
+  Quit.
+- The item shows the number of open cards. When any card needs you it turns
+  amber, the glyph fills in, and the number becomes the count that needs you —
+  that is the app's whole job while the panel is shut.
+- **Click a row** to expand it into what it is / where it's at, plus a meta
+  strip: review, CI, unresolved threads, merge state, agent liveness,
+  uncommitted files, branch. Expanded rows are remembered across launches.
+- **Click a chip** to open it. Everything opens in your default browser,
+  except the workspace chip, which opens the Superset app at that chat — that
+  is how you reach the agent to instruct it. A card whose agent runs in the
+  cloud carries a **cloud** glyph there instead, and opens the session on
+  claude.ai.
+
+The pill colours are the dashboard's, with one change: `IN REVIEW` is teal
+rather than the same grey as `DRAFT` — the two were indistinguishable, and a
+PR out for review is further along than a draft.
+
+## Where the cards come from
+
+**GitHub is required; the orchestrator's files are enrichment.** With
+`~/.claude/superset-orchestrator/` missing entirely the board still shows a
+card per open PR — it just has no workspace names, tickets, outcomes or agent
+status to add. Point it at a repo with `BOARD_REPOS=owner/name` (under the
+hood: `board refresh --repos … --stdout`, no orchestrator root needed). With
+neither a config nor that variable, nothing polls and the board says so,
+rather than guessing at a repository.
+
+**Whose PRs.** `operator.githubLogin` decides, and `board poll` reads the same
+field, so the two halves cannot show different boards. A login watches that
+person; `*` takes every PR in the repo, which is what a team board wants.
+
+**Which tracker.** An explicit `tracker` block chooses: `kind` is matched
+against the board item's `source.kind`, and `issueUrl` has `{key}`
+substituted. Without a block, tickets are Linear built from
+`operator.linearWorkspace` — what every config written before the block
+existed means. A key from a tracker the config does not name still shows on
+the card — it just does not link, because a link built from the wrong template
+goes somewhere wrong rather than nowhere. Two kinds need no extra account:
+`github-issues` (the fresh-install default — the repo's own issues, priority
+from the labels `urgent`/`high`/`medium`/`low`) and `markdown`, a backlog of
+files committed to the repository, one per task — see
+[markdown-tracker.md](skills/superset-orchestrator/reference/markdown-tracker.md).
+
+**Which preview host.** A preview deployment is found by matching the PR's
+bot comments, Vercel by default. `preview.patterns` replaces that list —
+first match wins, and an unusable pattern costs a chip rather than the board.
+
+**Where the agent runs.** An item dispatched with `--host cloud` runs as a
+Claude Code session on claude.ai rather than in a Superset workspace on this
+machine. Its card shows a cloud glyph and opens the session in a browser.
+Such an agent cannot write to the orchestrator's status inbox, so these cards
+carry no agent state, phase or liveness, and everything they say comes from
+GitHub. Before a PR exists the card reads "Running on claude.ai. Nothing
+pushed yet." rather than reporting missing data as a fault. See
+[cloud-sessions.md](skills/superset-orchestrator/reference/cloud-sessions.md).
+
+All of those sources are the CLI's to read — `board refresh` polls GitHub,
+folds the orchestrator's files in, and writes one `cards.json` v2 document at
+the orchestrator root (plus per-project `board.html`, `board.md` and
+`cards.json`). The app reads the root document and nothing else.
+
+| Source | Read by | Used for |
+|---|---|---|
+| `gh pr list` / `gh api graphql` | the CLI, per refresh | the PRs, their state, threads, previews |
+| `board.json`, `workspaces/*.json`, `signals/*` | the CLI, per render | items, agents, liveness, landed PRs |
+| the config ([docs/config.md](docs/config.md)) | the CLI | which repos, whose PRs, tracker and preview links |
+| `cards.json` | **the app** | everything it draws |
+
+The orchestrator's directory is watched with FSEvents, so an agent writing
+its status redraws the board at once without a GitHub call: the app runs
+`board refresh --render-only` (which polls nothing) and re-reads. **The app
+only ever reads the orchestrator's state**; the only writer is the CLI it
+spawns.
+
+An open PR that the orchestrator has closed or rejected stays hidden. Hiding
+it is a decision about that PR, and re-adding it as a GitHub-only card would
+quietly overrule you. **A merged PR leaves the board** — it asks nothing of
+you — while a PR closed *without* merging stays, as `GONE FROM OPEN`.
+
+## Design notes
+
+The card model in `cli/src/cards/` is a **port, not a redesign**: the pill
+chain, the "is / at" chain and the sort order are transcribed from the
+original `render-board.sh` jq, quirks kept deliberately so old and new agree
+byte for byte — and every place the port *chose* to differ is enumerated as a
+`Divergence` in `cli/src/cards/build.ts` (a red check outranks a waiting
+review; running CI is not "mergeable"; merged PRs are dropped rather than
+shown as `MERGED — REAP`). The goldens live in `cli/test/` — `build.test.ts`
+diffs the chain against the reference jq's frozen output; `assemble.test.ts`
+and `stacks.test.ts` hold the app-mode assembly. The Swift side is pinned the
+other way round: `Tests/BoardKitTests/CardsDocumentDecodingTests` decodes a
+`cards-v2.json` fixture **generated by the CLI itself** (the regeneration
+command is in the test file's header), so the app's reader is tested against
+the producer's actual output.
+
+The history of why each guard exists — the failure that taught it — is in
+[docs/lessons.md](docs/lessons.md).
+
+To look at the model by hand:
+
+```sh
+board dump | jq '.projects[].cards[] | {id, pill}'
+```
+
+`board dump` prints the same cards.json v2 document the app reads, explicit
+nulls and all.
+
+## Environment
+
+| Variable | Effect |
 |---|---|
-| `docs/` | The model, the two agent contracts, and the reason for each guard |
-| `skills/` | The three skills, the scripts that run the loop, and the scout |
-| `Sources/`, `Tests/` | The menu bar app, in Swift, with no dependencies |
+| `SUPERSET_ORCH_ROOT` | the orchestrator root (default `~/.claude/superset-orchestrator`) |
+| `SUPERSET_ORCH_PROJECT` | select one project key under `p/` |
+| `SUPERSET_ORCH_DIR` | a one-off board directory, outside the root's world |
+| `BOARD_CLI_PATH` | (app) path to the `board` CLI, if it is somewhere unusual |
+| `BOARD_ORCHESTRATOR_DIR` | (app) read a different orchestrator directory — a copy, for a look at another board |
+| `BOARD_REPOS` | `owner/name`, comma-separated: a board with no orchestrator at all |
+| `BOARD_APPEARANCE` | (app) `dark` or `light`, pinning the panel instead of following the system |
 
-Read [docs/workflow.md](docs/workflow.md) first. Before you change a script, read
-[docs/lessons.md](docs/lessons.md). Each guard looks unnecessary until you know what
-it prevents.
+A bundled app inherits launchd's `PATH`, which does not include
+`/opt/homebrew/bin`, so the `board` CLI is located explicitly:
+`BOARD_CLI_PATH`, then the usual install prefixes, then your login shell's
+`command -v board`. If the footer says the CLI was not found, set
+`BOARD_CLI_PATH`.
 
-## What you need
+## Layout
 
-- **[Superset](https://superset.sh)**. Superset runs the agents. A Superset
-  workspace is a git worktree with an agent session attached to it. The CLI creates
-  these workspaces, lists them, and deletes them. Without Superset, the queue and the
-  board still work, but no agent starts. For the commands this workflow uses, read
-  [docs/superset-cli.md](docs/superset-cli.md).
-- **[gh](https://cli.github.com)**, logged in. Pull request state, checks, and review
-  threads come through it.
-- **jq**. Each script is shell and jq. There is no other runtime.
-- **An issue tracker**. The ticket links are built for Linear. Nothing else depends
-  on Linear.
-- **The Linear and Slack MCP plugins**, for the scout. The scout declares
-  `mcp__plugin_linear_linear__*` and `mcp__plugin_slack_slack__*`. Without these
-  plugins, the scout can still read GitHub and the transcript of a stalled workspace.
-- **macOS 14 or later**, for the menu bar app, with the Command Line Tools
-  (`xcode-select --install`). Xcode is not necessary. The app is the only part that
-  needs macOS. It is also the only part that runs without Superset.
+```
+cli/                  the board CLI — all state, polling, card logic, rendering
+skills/               the agent contracts: orchestrator, implementer, setup
+agents/               the read-only scout subagent
+hooks/                the status-observation Stop hook
+.claude-plugin/       the plugin manifest and marketplace
+docs/                 the workflow documentation
+Sources/BoardKit/     the app's client model — cards.json decoding, CLI location
+Sources/Board/        the app — status item, panel, refresh loop
+Tests/BoardKitTests/  decoding tests against a CLI-generated cards.json fixture
+Resources/Info.plist  LSUIElement, so it lives in the menu bar with no Dock icon
+Makefile              build → .app, no Xcode involved
+```
 
-## Installation
-
-1. Install [Superset](https://superset.sh). Then sign in. The login is a browser
-   flow, so you must run it yourself.
-
-   ```bash
-   superset auth login
-   superset auth whoami      # confirm the session
-   ```
-
-2. Install the three skills.
-
-   ```bash
-   npx skills add shrimbly/nice-job-team --skill '*' --agent claude-code -g -y
-   ```
-
-   `-g` puts them in `~/.claude/skills/`, so they work in every repository.
-   Leave it out to install into the current project only. The scripts keep
-   their executable bit, so no `chmod` step is necessary.
-
-   To install for every agent on the machine, use `--all` in place of the two
-   flags. [skills.sh](https://skills.sh) supports more than 70 agents and finds
-   the correct directory for each one.
-
-   NOTE: Some agents accept a project skill and refuse a global one. With
-   `--all -g`, each of those agents reports `<agent> does not support global
-   skill installation`, once for each skill. The other agents still install.
-   To silence the report, name the agents you want, as above.
-
-3. Go to the repository you want to orchestrate. Then ask your agent to set it
-   up:
-
-   > set up the orchestrator for this repo
-
-   The `superset-setup` skill reads the repository, the main clone, the base
-   branch, and your GitHub login from the checkout. It asks only for your
-   Linear workspace and your default reviewer. Then it writes
-   `~/.claude/superset-orchestrator/config.json`, installs the scout subagent,
-   and runs the preflight check.
-
-   Repeat this step in each repository you want to add. The configuration
-   merges, so a second repository does not disturb the first.
-
-4. Start the poller.
-
-   ```bash
-   ~/.claude/skills/superset-orchestrator/scripts/watch.sh --start
-   ```
-
-To read the configuration at any time, run
-`~/.claude/skills/superset-orchestrator/scripts/setup.sh --show`. To set a
-repository up without an agent, run that script with no arguments and answer
-the questions.
-
-## The app
-
-To build the app and start it, run `make run`. To copy it to `~/Applications`, run
-`make install`.
-
-The app stays in the menu bar. It shows a count of the items that need you. It opens
-each link in your default browser. It reads the board of the orchestrator and never
-writes to it. If no orchestrator is present, the app reads GitHub alone.
-
-To run the tests, use `make test`. The most important test is
-`CardBuilderGoldenTests`. It compares the model of the app against the JSON that
-`render-board.sh` makes from the same input, field by field. The app is a port of
-that script, and this test keeps the two the same. The fixtures are real captures
-with the content replaced.
-
-## What this project decides for you
-
-- **The board is the record, not the chat.** Each context reset was survivable
-  because the state was on disk.
-- **A guard is better than a rule.** A reader misses a rule in a document. The
-  five-word title limit held only after `dispatch.sh` started to refuse a longer one.
-- **An agent stops before it pushes.** The operator reads the work before it becomes
-  a pull request.
-- **One operator by default.** `poll.sh` filters pull requests by
-  `operator.githubLogin`. For each pull request in the repository, set that value
-  to `*`.
-
-## License
-
-MIT. Read [LICENSE](LICENSE). The Linear mark comes from Simple Icons (CC0). Read
-[NOTICE](NOTICE).
+Tests use **swift-testing**, not XCTest: Command Line Tools ships
+`Testing.framework` but no XCTest, so `swift test` cannot link XCTest on a
+machine without Xcode.
