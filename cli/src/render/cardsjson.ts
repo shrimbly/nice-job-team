@@ -8,8 +8,9 @@
 // The card entries are the app-mode assembly (assemble()), not the reference
 // jq: this file exists for consumers that want the model, and the model is the
 // app's — declared divergences applied, stacks folded, unclaimed PRs
-// synthesized. Each entry is the 27-key Card plus the three things only the
-// assembly knows: host, prTitle, and the folded stack.
+// synthesized. Each entry is the reference chain's 27 keys, the app-mode
+// `previewPending`, and the three things only the assembly knows: host,
+// prTitle, and the folded stack.
 
 import type { AssemblerConfig } from '../cards/assemble.js';
 import { shortNameFor } from '../cards/assemble.js';
@@ -40,6 +41,8 @@ function cardEntry(projectCard: ProjectCard): Record<string, unknown> {
   // built out of order upstream would still serialize in order here.
   const entry: Record<string, unknown> = {};
   for (const key of CARD_KEYS) entry[key] = projectCard.card[key];
+  // The app-mode key the reference chain does not carry — see Card.
+  entry['previewPending'] = projectCard.card.previewPending ?? false;
   entry['host'] = projectCard.host;
   entry['prTitle'] = projectCard.prTitle;
   entry['stack'] = projectCard.stack.map(stackEntry);

@@ -342,6 +342,7 @@ export function decodeOpenRow(
   if (typeof row['threadsAwaitingReviewer'] === 'number') {
     pr.threadsAwaitingReviewer = row['threadsAwaitingReviewer'];
   }
+  if (typeof row['previewPending'] === 'boolean') pr.previewPending = row['previewPending'];
   if (Array.isArray(row['reviewRequests'])) pr.reviewRequests = row['reviewRequests'];
   if (isObj(row['reviewStates'])) {
     const states: Record<string, string> = {};

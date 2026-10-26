@@ -1,7 +1,7 @@
 {
   "name": "superset-board",
   "owner": {
-    "name": "Dev",
+    "name": "dev",
     "email": "dev@acme.org"
   },
   "description": "Self-hosting marketplace for the superset-board plugin — this repository is the marketplace and its one plugin.",

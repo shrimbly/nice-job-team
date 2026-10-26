@@ -32,6 +32,8 @@ import { renderCardsJson } from '../render/cardsjson.js';
 import { renderHtml } from '../render/html.js';
 import { renderMarkdown, summaryLine } from '../render/markdown.js';
 import { nowIso } from '../store.js';
+import { dismissedCardKeys } from './dismiss.js';
+import type { SharedGithubPass } from './poll.js';
 import { realPollIo, runPoll } from './poll.js';
 import { effectiveQueue } from './review.js';
 import type {
@@ -283,7 +285,7 @@ export function renderBoards(options: RenderBoardsOptions): string {
   // file must never cost the board — so a non-numeric value means the default.
   const days = Number(cfg(config, '.limits.recentlyClosedDays', 7));
   const cutoff = recentCutoff(Number.isFinite(days) ? days : 7);
-  const appConfig = assemblerConfig(config);
+  const appConfig = { ...assemblerConfig(config), dismissed: dismissedCardKeys(orch) };
   const generatedAt = nowIso();
 
   // Discovery for the root document runs WITHOUT SUPERSET_ORCH_PROJECT — see
@@ -476,18 +478,18 @@ function openRowsAsPRs(blocks: RepoSignalBlock[]): PullRequest[] {
  * state dir to write into, and inventing one would silently turn a stateless
  * client into a board it later trips over.
  */
-function refreshGithubOnly(
+async function refreshGithubOnly(
   repoNames: string[],
   io: PollIo,
   gh: string | null,
   failures: Set<string>,
   out: (text: string) => void,
-): number {
+): Promise<number> {
   if (gh === null) failures.add('gh not found — no PR data available');
   // '@me' on both sides is poll.sh's default operator: the client's own PRs
   // plus the ones awaiting their review, same board semantics as a configured
   // orchestrator with no .operator.githubLogin.
-  const blocks = collectGithub(io, gh, repoNames, '@me', '@me', {
+  const blocks = await collectGithub(io, gh, repoNames, '@me', '@me', {
     ourLogins: [],
     previewPatterns: null,
   });
@@ -548,7 +550,7 @@ export async function runRefresh(argv: string[], deps: RefreshDeps = {}): Promis
   const recording = recordGhFailures(io, gh, failures);
 
   if (parsed.repos !== undefined) {
-    return refreshGithubOnly(parsed.repos, recording, gh, failures, out);
+    return await refreshGithubOnly(parsed.repos, recording, gh, failures, out);
   }
 
   const orch = loadRoot(io.env);
@@ -561,6 +563,11 @@ export async function runRefresh(argv: string[], deps: RefreshDeps = {}): Promis
 
   if (!parsed.renderOnly) {
     if (gh === null) failures.add('gh not found — PR signals not refreshed');
+    // One GitHub pass for the whole refresh. The queries are global — the
+    // repos come from config, not from the project — so polling each project
+    // asked GitHub the same questions again and wrote the same answers into
+    // another directory. See PollOptions.shared.
+    const shared: SharedGithubPass = {};
     for (const project of selected) {
       try {
         // The summary is poll's human surface and `board poll` still prints
@@ -569,7 +576,17 @@ export async function runRefresh(argv: string[], deps: RefreshDeps = {}): Promis
         // delta baseline the cycle/watch daemon diffs its events.log lines
         // against (keepBaseline: the daemon's transitions would be silently
         // absorbed by a caller that reports none of them).
-        runPoll(orch, project.root, config, recording, { ghPath: gh, keepBaseline: true });
+        await runPoll(orch, project.root, config, recording, {
+          ghPath: gh,
+          keepBaseline: true,
+          shared,
+          // The app refreshes on wake, on panel-open, and on its own timer —
+          // all re-fetching the identical global PR set the daemon just fetched.
+          // Opt into the orch-root cache so those become free reuses within the
+          // TTL. `shared` still dedupes within this one refresh; the disk cache
+          // dedupes across refreshes and against the daemon.
+          pollCache: true,
+        });
       } catch (e) {
         const reason = e instanceof Error ? e.message : String(e);
         failures.add(`poll failed for ${project.key === '' ? project.root : project.key}: ${reason}`);

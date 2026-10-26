@@ -270,7 +270,7 @@ describe('init', () => {
     const { io } = makeIo({ cwd: clone, layout, env: { SUPERSET_WORKSPACE_ID: 'ws-9' } });
 
     const file = join(layout.wsDir, 'ws-9.json');
-    const result = statusOp(io, ['init', '--item', 'itm_7', '--slug', 'eng-142-data-table']);
+    const result = statusOp(io, ['init', '--item', 'itm_7', '--slug', 'eng-142-log-table']);
     expect(result.stdout).toEqual([`initialised ${file}`]);
 
     const doc = readStatus(file);
@@ -278,7 +278,7 @@ describe('init', () => {
       version: 1,
       workspaceId: 'ws-9',
       itemId: 'itm_7',
-      slug: 'eng-142-data-table',
+      slug: 'eng-142-log-table',
       branch: 'dev/feat',
       baseBranch: 'main', // origin/HEAD, stripped of origin/
       worktreePath: toplevel(clone),

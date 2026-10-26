@@ -15,12 +15,14 @@ import {
   MERGED_FIELDS,
   OPEN_FIELDS,
   ciRollup,
+  collectGithub,
   deriveOpenRow,
   detailsQuery,
   enrichPRs,
   fetchRepoPRs,
   indexDetails,
   previewFromPrevious,
+  previewPendingFromRollup,
   uniqueByNumber,
 } from '../src/facts/github.js';
 import {
@@ -131,6 +133,106 @@ describe('ciRollup', () => {
 
 // ── unique_by(.number) ────────────────────────────────────────────────────────
 
+describe('previewPendingFromRollup', () => {
+  const vercel = 'https://website-git-branch-team.vercel.app';
+
+  test('a running deploy check of the URL’s own host is pending', () => {
+    // CheckRun flavour: a running check has a null conclusion, like ciRollup's "".
+    expect(previewPendingFromRollup([{ name: 'Vercel', conclusion: null }], vercel)).toBe(true);
+    // StatusContext flavour: contexts carry state, not conclusion.
+    expect(previewPendingFromRollup([{ context: 'vercel/preview', state: 'PENDING' }], vercel)).toBe(
+      true,
+    );
+    expect(previewPendingFromRollup([{ name: 'Vercel', conclusion: 'SUCCESS' }], vercel)).toBe(
+      false,
+    );
+    expect(previewPendingFromRollup([{ name: 'Vercel', conclusion: 'FAILURE' }], vercel)).toBe(
+      false,
+    );
+  });
+
+  // The case the chip most needs to speak for: pushed, deploying, and no
+  // preview has ever been published, so the slot is empty and cannot itself
+  // tell "no previews here" from "the first one is seconds away". The host is
+  // named by the URL that does not exist yet, so any known deploy check counts.
+  test('with no preview URL yet, any deploy check still reads as building', () => {
+    expect(previewPendingFromRollup([{ context: 'Vercel', state: 'PENDING' }], '')).toBe(true);
+    expect(previewPendingFromRollup([{ name: 'Netlify', conclusion: null }], '')).toBe(true);
+    expect(previewPendingFromRollup([{ name: 'Cloudflare Pages', conclusion: null }], '')).toBe(
+      true,
+    );
+    // A finished deploy is not building — the preview simply has no URL yet
+    // because it failed, or because there is nothing to publish.
+    expect(previewPendingFromRollup([{ context: 'Vercel', state: 'SUCCESS' }], '')).toBe(false);
+    // And a repo with no deploy check at all still says nothing, which is the
+    // "no previews here" the empty slot goes on meaning.
+    expect(previewPendingFromRollup([{ name: 'test', conclusion: null }], '')).toBe(false);
+    expect(previewPendingFromRollup([], '')).toBe(false);
+  });
+
+  // With a URL the host IS known, so an unrelated host's deploy must not make
+  // this preview's chip spin.
+  test('with a URL, only that host’s check counts', () => {
+    const vercelUrl = 'https://site-git-branch.vercel.app';
+    expect(previewPendingFromRollup([{ name: 'Netlify', conclusion: null }], vercelUrl)).toBe(
+      false,
+    );
+    expect(previewPendingFromRollup([{ context: 'Vercel', state: 'PENDING' }], vercelUrl)).toBe(
+      true,
+    );
+  });
+
+  // Vercel posts two checks that both say "Vercel" on the same push. Only the
+  // first is the deployment; the comment bot finishes on its own schedule, and
+  // waiting on it would hold the chip spinning — and the banner back — after
+  // the preview was already live.
+  test('Vercel’s comment bot is not the deployment', () => {
+    expect(
+      previewPendingFromRollup(
+        [
+          { context: 'Vercel', state: 'SUCCESS' },
+          { name: 'Vercel Preview Comments', conclusion: null },
+        ],
+        vercel,
+      ),
+    ).toBe(false);
+    // And the deployment itself still counts when the bot has finished.
+    expect(
+      previewPendingFromRollup(
+        [
+          { context: 'Vercel', state: 'PENDING' },
+          { name: 'Vercel Preview Comments', conclusion: 'SUCCESS' },
+        ],
+        vercel,
+      ),
+    ).toBe(true);
+  });
+
+  test('another host’s pending check says nothing about this preview', () => {
+    expect(
+      previewPendingFromRollup([{ name: 'Vercel', conclusion: null }], 'https://site.netlify.app'),
+    ).toBe(false);
+    expect(
+      previewPendingFromRollup(
+        [{ name: 'Cloudflare Pages', conclusion: null }],
+        'https://main.pages.dev',
+      ),
+    ).toBe(true);
+  });
+
+  test('a URL no known host names never reads pending', () => {
+    expect(
+      previewPendingFromRollup([{ name: 'Anything', conclusion: null }], 'https://preview.example.com'),
+    ).toBe(false);
+    // A preview served from somewhere the table does not know is not something
+    // this can speak for, even while a host it DOES know is deploying: the chip
+    // opens the unknown address, and that address is not what is being built.
+    expect(
+      previewPendingFromRollup([{ name: 'Vercel', conclusion: null }], 'https://preview.example.com'),
+    ).toBe(false);
+  });
+});
+
 describe('uniqueByNumber', () => {
   test('keeps the open-list row over its review-requested duplicate, sorted ascending', () => {
     const merged = uniqueByNumber([
@@ -147,12 +249,12 @@ describe('uniqueByNumber', () => {
 // ── gh pr list plumbing ───────────────────────────────────────────────────────
 
 describe('fetchRepoPRs', () => {
-  test("makes poll.sh's four calls with its field lists and limits", () => {
+  test("makes poll.sh's four calls with its field lists and limits", async () => {
     const { io, calls } = makeIo((cmd, args) => {
       if (cmd !== '/stub/gh') return undefined;
       return ok('[]');
     });
-    fetchRepoPRs(io, '/stub/gh', 'o/r', 'dev', 'dev');
+    await fetchRepoPRs(io, '/stub/gh', 'o/r', 'dev', 'dev');
     expect(calls.map((c) => c.args)).toEqual([
       ['pr', 'list', '--repo', 'o/r', '--author', 'dev', '--state', 'open', '--limit', '50', '--json', OPEN_FIELDS],
       ['pr', 'list', '--repo', 'o/r', '--search', 'review-requested:dev', '--state', 'open', '--limit', '30', '--json', OPEN_FIELDS],
@@ -161,15 +263,15 @@ describe('fetchRepoPRs', () => {
     ]);
   });
 
-  test('a null author filter omits --author entirely', () => {
+  test('a null author filter omits --author entirely', async () => {
     // gh treats `--author ""` as an author named nothing and returns no PRs.
     const { io, calls } = makeIo(() => ok('[]'));
-    fetchRepoPRs(io, '/stub/gh', 'o/r', null, '@me');
+    await fetchRepoPRs(io, '/stub/gh', 'o/r', null, '@me');
     for (const call of calls) expect(call.args).not.toContain('--author');
     expect(calls[1]!.args).toContain('review-requested:@me');
   });
 
-  test('a null review login skips the review-requested query entirely', () => {
+  test('a null review login skips the review-requested query entirely', async () => {
     // operator.includeReviewRequests: false — the board holds authored work
     // only, so the search call must not even be made.
     const { io, calls } = makeIo((cmd, args) => {
@@ -177,13 +279,13 @@ describe('fetchRepoPRs', () => {
       if (args.includes('open')) return ok(JSON.stringify([{ number: 5, title: 'mine' }]));
       return ok('[]');
     });
-    const prs = fetchRepoPRs(io, '/stub/gh', 'o/r', 'dev', null);
+    const prs = await fetchRepoPRs(io, '/stub/gh', 'o/r', 'dev', null);
     expect(prs.open.map((r) => r['number'])).toEqual([5]);
     expect(calls).toHaveLength(3);
     for (const call of calls) expect(call.args).not.toContain('--search');
   });
 
-  test('review-requested PRs merge into open; closed keeps only unmerged', () => {
+  test('review-requested PRs merge into open; closed keeps only unmerged', async () => {
     const { io } = makeIo((cmd, args) => {
       if (args.includes('--search')) return ok(JSON.stringify([{ number: 7 }, { number: 5 }]));
       if (args.includes('open')) return ok(JSON.stringify([{ number: 5, title: 'mine' }]));
@@ -198,18 +300,53 @@ describe('fetchRepoPRs', () => {
       }
       return undefined;
     });
-    const prs = fetchRepoPRs(io, '/stub/gh', 'o/r', null, '@me');
+    const prs = await fetchRepoPRs(io, '/stub/gh', 'o/r', null, '@me');
     expect(prs.open.map((r) => r['number'])).toEqual([5, 7]);
     expect(prs.open[0]!['title']).toBe('mine');
     expect(prs.merged).toEqual([{ number: 3, mergedAt: 'T' }]);
     expect(prs.closed).toEqual([{ number: 1, mergedAt: null }]);
   });
 
-  test('every failure degrades to empty lists, silently, like the shell', () => {
+  test('every failure degrades to empty lists, silently, like the shell', async () => {
     const { io, warnings } = makeIo(() => ({ status: 4, stdout: '', stderr: 'boom' }));
-    const prs = fetchRepoPRs(io, '/stub/gh', 'o/r', null, '@me');
+    const prs = await fetchRepoPRs(io, '/stub/gh', 'o/r', null, '@me');
     expect(prs).toEqual({ repo: 'o/r', open: [], merged: [], closed: [] });
     expect(warnings).toEqual([]);
+  });
+});
+
+// ── concurrent repo fetch ─────────────────────────────────────────────────────
+
+describe('collectGithub concurrency', () => {
+  test('fetches repos through execAsync, in parallel but capped at 3 in flight', async () => {
+    let inflight = 0;
+    let maxInflight = 0;
+    let syncExecCalls = 0;
+    const io: PollIo = {
+      exec() {
+        syncExecCalls += 1;
+        return { status: 0, stdout: '[]', stderr: '' };
+      },
+      async execAsync() {
+        inflight += 1;
+        maxInflight = Math.max(maxInflight, inflight);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        inflight -= 1;
+        return { status: 0, stdout: '[]', stderr: '' };
+      },
+      now: () => 'T',
+      nowMs: () => 0,
+      homeDir: () => '/x',
+      env: {},
+      warn: () => {},
+    };
+    const repos = ['o/a', 'o/b', 'o/c', 'o/d', 'o/e'];
+    // wantMergedClosed:false keeps each repo to its open fetch; empty lists mean
+    // no open PRs, so enrichPRs makes no (synchronous) details call.
+    await collectGithub(io, '/gh', repos, null, '@me', { ourLogins: [] }, false);
+    expect(maxInflight).toBeGreaterThan(1); // genuinely parallel across repos
+    expect(maxInflight).toBeLessThanOrEqual(3); // …but bounded by the cap
+    expect(syncExecCalls).toBe(0); // the async path was taken, not the sync fallback
   });
 });
 
@@ -333,6 +470,7 @@ describe('deriveOpenRow', () => {
       title: 't',
       repo: 'o/r',
       previewUrl: null,
+      previewPending: false,
       ciState: 'none',
       unresolvedThreads: 0,
       threadsAwaitingReviewer: 0,
@@ -385,8 +523,9 @@ describe('enrichPRs', () => {
       // The rollup is derived and then dropped, exactly like the jq's del().
       expect(row).not.toHaveProperty('statusCheckRollup');
     }
-    // ONE GraphQL call for all five PRs — the batching poll.sh never had.
-    expect(calls.filter((c) => c.args[0] === 'api' && c.args[1] === 'graphql')).toHaveLength(1);
+    // ONE details query batches all five PRs' threads — the batching poll.sh
+    // never had. (The CI rollup rides a separate, equally-batched query.)
+    expect(calls.filter((c) => c.args.some((a) => String(a).includes('reviewThreads')))).toHaveLength(1);
   });
 
   test('a preview already in the previous signals is reused, not re-scraped', () => {
@@ -397,7 +536,7 @@ describe('enrichPRs', () => {
         {
           repo: 'acme/platform',
           open: [
-            { number: 438, previewUrl: 'https://cached-acme.vercel.app' },
+            { number: 438, previewUrl: 'https://cached-acmeui.vercel.app' },
             { number: 442, previewUrl: null },
           ],
         },
@@ -410,7 +549,7 @@ describe('enrichPRs', () => {
       { ourLogins: [], previousSignals: previous },
     );
     const by = new Map(block!.open.map((r) => [r['number'], r]));
-    expect(by.get(438)!['previewUrl']).toBe('https://cached-acme.vercel.app');
+    expect(by.get(438)!['previewUrl']).toBe('https://cached-acmeui.vercel.app');
     const scraped = calls.filter((c) => c.args[0] === 'pr' && c.args[1] === 'view').map((c) => c.args[2]);
     expect(scraped).not.toContain('438');
     // `.previewUrl // empty`: a recorded null is NOT a found preview.
@@ -424,6 +563,70 @@ describe('enrichPRs', () => {
     expect(
       previewFromPrevious({ repos: [{ repo: 'o/r', open: [{ number: 1, previewUrl: '' }] }] }, 'o/r', 1),
     ).toBe('');
+  });
+
+  test('a PR scraped-empty for its current updatedAt is not re-scraped', () => {
+    const views: string[] = [];
+    const { io } = makeIo((cmd, args) => {
+      if (args[0] === 'api') return ok(JSON.stringify({ data: {} }));
+      if (args[0] === 'pr' && args[1] === 'view') {
+        views.push(String(args[2]));
+        return ok('{"comments":[]}');
+      }
+      return undefined;
+    });
+    const rows = [
+      { number: 1, title: 'a', updatedAt: 'T1', statusCheckRollup: [] }, // unchanged since a scrape
+      { number: 2, title: 'b', updatedAt: 'T2', statusCheckRollup: [] }, // changed since the scrape
+      { number: 3, title: 'c', updatedAt: 'T3', statusCheckRollup: [] }, // never scraped
+    ];
+    const previous = {
+      repos: [
+        {
+          repo: 'o/r',
+          open: [
+            { number: 1, previewUrl: null, previewScrapedFor: 'T1' },
+            { number: 2, previewUrl: null, previewScrapedFor: 'T0' }, // stale marker
+          ],
+        },
+      ],
+    };
+    const [block] = enrichPRs(
+      io,
+      '/stub/gh',
+      [{ repo: 'o/r', open: rows, merged: [], closed: [] }],
+      { ourLogins: [], previousSignals: previous },
+    );
+    expect(views).not.toContain('1'); // unchanged → skipped, the whole point
+    expect(views).toContain('2'); // updatedAt moved → looked again
+    expect(views).toContain('3'); // never looked → looked
+    // The skipped PR carries its marker forward so the NEXT poll skips it too.
+    const by = new Map(block!.open.map((r) => [r['number'], r]));
+    expect(by.get(1)!['previewUrl']).toBeNull();
+    expect(by.get(1)!['previewScrapedFor']).toBe('T1');
+  });
+
+  test('a pending deploy re-scrapes even when updatedAt has not moved', () => {
+    const views: string[] = [];
+    const { io } = makeIo((cmd, args) => {
+      if (args[0] === 'api') return ok(JSON.stringify({ data: {} }));
+      if (args[0] === 'pr' && args[1] === 'view') {
+        views.push(String(args[2]));
+        return ok('{"comments":[]}');
+      }
+      return undefined;
+    });
+    const rows = [
+      { number: 1, title: 'a', updatedAt: 'T1', statusCheckRollup: [{ context: 'Vercel', state: 'PENDING' }] },
+    ];
+    const previous = {
+      repos: [{ repo: 'o/r', open: [{ number: 1, previewUrl: null, previewScrapedFor: 'T1' }] }],
+    };
+    enrichPRs(io, '/stub/gh', [{ repo: 'o/r', open: rows, merged: [], closed: [] }], {
+      ourLogins: [],
+      previousSignals: previous,
+    });
+    expect(views).toContain('1'); // a deploy is building — look again despite the marker
   });
 
   test('a failed GraphQL call degrades to unenriched rows, lists intact', () => {
@@ -441,6 +644,149 @@ describe('enrichPRs', () => {
     expect(block!.open[0]!['ciState']).toBe('green');
     expect(block!.open[0]!['unresolvedThreads']).toBe(0);
     expect(block!.open[0]!['latestActivityAt']).toBeNull();
+  });
+
+  // ── incremental enrichment ──
+  // Re-fetching reviewThreads for every open PR every poll was the bulk of the
+  // poll's GraphQL cost. An unchanged PR's threads are exactly what the previous
+  // signals already hold, so they are reused and no GraphQL call is made for it.
+
+  test('an unchanged PR reuses its thread fields and makes no details call', () => {
+    const { io, calls } = makeIo((cmd, args) => {
+      if (args[0] === 'api') return ok(JSON.stringify({ data: {} }));
+      if (args[0] === 'pr' && args[1] === 'view') return ok('{"comments":[]}');
+      return undefined;
+    });
+    const rows = [
+      { number: 5, title: 't', updatedAt: 'T1', reviewDecision: 'APPROVED', statusCheckRollup: [{ conclusion: 'SUCCESS' }] },
+    ];
+    const previous = {
+      repos: [{
+        repo: 'o/r',
+        open: [{
+          number: 5, updatedAt: 'T1', reviewDecision: 'APPROVED', previewUrl: 'https://keep',
+          unresolvedThreads: 2, threadsAwaitingReviewer: 1, unresolvedSample: [{ path: 'a.ts' }],
+          latestActivityAt: '2026-09-01T00:00:00Z', reviewStates: { alice: 'APPROVED' },
+        }],
+      }],
+    };
+    const [block] = enrichPRs(io, '/stub/gh', [{ repo: 'o/r', open: rows, merged: [], closed: [] }], {
+      ourLogins: [],
+      previousSignals: previous,
+    });
+    // Nothing changed → no details (threads) query at all; the cheap CI rollup
+    // query still runs, which is why this counts reviewThreads calls, not all api.
+    expect(calls.filter((c) => c.args.some((a) => String(a).includes('reviewThreads')))).toHaveLength(0);
+    const r = block!.open[0]!;
+    expect(r['unresolvedThreads']).toBe(2); // reused
+    expect(r['threadsAwaitingReviewer']).toBe(1); // reused
+    expect(r['unresolvedSample']).toEqual([{ path: 'a.ts' }]); // reused
+    expect(r['latestActivityAt']).toBe('2026-09-01T00:00:00Z'); // reused
+    expect(r['reviewStates']).toEqual({ alice: 'APPROVED' }); // reused
+    expect(r['ciState']).toBe('green'); // fresh from the current rollup
+    expect(r['previewUrl']).toBe('https://keep'); // reused by previewFromPrevious
+    expect(r).not.toHaveProperty('statusCheckRollup');
+  });
+
+  test('a PR whose updatedAt moved is re-enriched from a fresh details call', () => {
+    const { io, calls } = makeIo((cmd, args) => {
+      if (args[0] === 'api') {
+        return ok(JSON.stringify({ data: { r0: { p5: {
+          number: 5,
+          reviewThreads: { nodes: [{
+            isResolved: false, path: 'a.ts',
+            comments: { nodes: [{ author: { login: 'rev' }, body: 'x', createdAt: '2026-09-02T00:00:00Z' }] },
+            lastComment: { nodes: [{ author: { login: 'rev' }, createdAt: '2026-09-02T00:00:00Z' }] },
+          }] },
+          reviews: { nodes: [] },
+        } } } }));
+      }
+      if (args[0] === 'pr' && args[1] === 'view') return ok('{"comments":[]}');
+      return undefined;
+    });
+    const rows = [{ number: 5, title: 't', updatedAt: 'T2', statusCheckRollup: [] }];
+    const previous = {
+      repos: [{ repo: 'o/r', open: [{ number: 5, updatedAt: 'T1', unresolvedThreads: 0, reviewStates: {} }] }],
+    };
+    const [block] = enrichPRs(io, '/stub/gh', [{ repo: 'o/r', open: rows, merged: [], closed: [] }], {
+      ourLogins: [],
+      previousSignals: previous,
+    });
+    expect(calls.filter((c) => c.args.some((a) => String(a).includes('reviewThreads')))).toHaveLength(1); // changed → one details query
+    expect(block!.open[0]!['unresolvedThreads']).toBe(1); // freshly derived
+  });
+
+  test('a PR whose reviewDecision moved is re-enriched even with a stable updatedAt', () => {
+    const { io, calls } = makeIo((cmd, args) => {
+      if (args[0] === 'api') {
+        return ok(JSON.stringify({ data: { r0: { p5: { number: 5, reviewThreads: { nodes: [] }, reviews: { nodes: [] } } } } }));
+      }
+      if (args[0] === 'pr' && args[1] === 'view') return ok('{"comments":[]}');
+      return undefined;
+    });
+    const rows = [{ number: 5, title: 't', updatedAt: 'T1', reviewDecision: 'APPROVED', statusCheckRollup: [] }];
+    const previous = {
+      repos: [{ repo: 'o/r', open: [{ number: 5, updatedAt: 'T1', reviewDecision: 'REVIEW_REQUIRED', unresolvedThreads: 3, reviewStates: {} }] }],
+    };
+    const [block] = enrichPRs(io, '/stub/gh', [{ repo: 'o/r', open: rows, merged: [], closed: [] }], {
+      ourLogins: [],
+      previousSignals: previous,
+    });
+    expect(calls.filter((c) => c.args.some((a) => String(a).includes('reviewThreads')))).toHaveLength(1);
+    expect(block!.open[0]!['unresolvedThreads']).toBe(0); // fresh, not the stale 3
+  });
+
+  // ── CI rollup via the bounded query (the fix for the frontend's 502 → PR Gone) ──
+
+  test('the open list carries no statusCheckRollup field (it 502s on big repos)', () => {
+    expect(OPEN_FIELDS).not.toContain('statusCheckRollup');
+  });
+
+  test('ciState comes from the rollup query state, which weighs every check', () => {
+    const { io } = makeIo((cmd, args) => {
+      const q = String(args.find((a) => String(a).startsWith('query=')) ?? '');
+      if (q.includes('statusCheckRollup')) {
+        // The whole PR is FAILURE, but the one context we page in is green — the
+        // real frontend case (156 checks, the red one past the 100-context cap).
+        return ok(JSON.stringify({ data: { r0: { p5: {
+          number: 5,
+          commits: { nodes: [{ commit: { statusCheckRollup: {
+            state: 'FAILURE',
+            contexts: { nodes: [{ __typename: 'StatusContext', context: 'lint', state: 'SUCCESS' }] },
+          } } }] },
+        } } } }));
+      }
+      if (q.includes('reviewThreads')) {
+        return ok(JSON.stringify({ data: { r0: { p5: { number: 5, reviewThreads: { nodes: [] }, reviews: { nodes: [] } } } } }));
+      }
+      if (args[0] === 'pr' && args[1] === 'view') return ok('{"comments":[]}');
+      return undefined;
+    });
+    // A production-shaped open row: NO statusCheckRollup (dropped from OPEN_FIELDS).
+    const rows = [{ number: 5, title: 't', updatedAt: 'T1' }];
+    const [block] = enrichPRs(io, '/stub/gh', [{ repo: 'o/r', open: rows, merged: [], closed: [] }], {
+      ourLogins: [],
+    });
+    const r = block!.open[0]!;
+    expect(r['ciState']).toBe('red'); // from state=FAILURE, not the single green context
+    expect(r).not.toHaveProperty('statusCheckRollup'); // transient, dropped on the way out
+    expect(r).not.toHaveProperty('_rollupState');
+  });
+
+  test('onStats reports the enriched count and the GraphQL remaining', () => {
+    const { io } = makeIo((cmd, args) => {
+      if (args[0] === 'api') {
+        return ok(JSON.stringify({ data: { rateLimit: { remaining: 1234 }, r0: { p5: { number: 5, reviewThreads: { nodes: [] }, reviews: { nodes: [] } } } } }));
+      }
+      if (args[0] === 'pr' && args[1] === 'view') return ok('{"comments":[]}');
+      return undefined;
+    });
+    let stats: { rateRemaining: number | null; enriched: number } | undefined;
+    enrichPRs(io, '/stub/gh', [{ repo: 'o/r', open: [{ number: 5, title: 't', updatedAt: 'T1', statusCheckRollup: [] }], merged: [], closed: [] }], {
+      ourLogins: [],
+      onStats: (s) => { stats = s; },
+    });
+    expect(stats).toEqual({ rateRemaining: 1234, enriched: 1 });
   });
 });
 

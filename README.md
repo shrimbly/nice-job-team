@@ -17,8 +17,8 @@ an optional macOS menu-bar app draws the same board from the CLI's
 ├──────────────────────────────────────────────────┤
 │ Region names and scaling copy     [IN REVIEW]  ⌄ │
 │ PR-508  ENG-645  Preview                         │
-│ Adjust access to vendor mo…    [NEEDS YOU]  ⌄ │
-│ ●eng-607-vendor-adjust  ENG-607               │
+│ Restrict access to partner mo…    [NEEDS YOU]  ⌄ │
+│ ●eng-607-partner-restrict  ENG-607               │
 │ Test-this-deployment card: sa…    [DRAFT]      ⌄ │
 │ PR-470  ENG-609  Preview                         │
 ├──────────────────────────────────────────────────┤
@@ -174,6 +174,16 @@ the manager's own settings).
 - The item shows the number of open cards. When any card needs you it turns
   amber, the glyph fills in, and the number becomes the count that needs you —
   that is the app's whole job while the panel is shut.
+- **When a PR turns mergeable or a preview deployment lands**, a banner drops
+  in under the menu-bar item — the app's own, not the system's, so it is attributed to
+  the app and clicking it opens the link. Banners stay until dismissed: the
+  ✕ puts one away without opening it, and opening the panel clears them all.
+  The pile is stacked sonner-style — the newest in front, older banners
+  peeking beneath it until you hover, when the stack fans out. Three at a
+  time, the rest queued behind them. A preview banner waits for the deploy to
+  finish: the push that starts it is not news, and the preview URL is the
+  branch's and never changes, so what the banner marks is the moment the site
+  is actually serving the new change.
 - **Click a row** to expand it into what it is / where it's at, plus a meta
   strip: review, CI, unresolved threads, merge state, agent liveness,
   uncommitted files, branch. Expanded rows are remembered across launches.
@@ -181,7 +191,9 @@ the manager's own settings).
   except the workspace chip, which opens the Superset app at that chat — that
   is how you reach the agent to instruct it. A card whose agent runs in the
   cloud carries a **cloud** glyph there instead, and opens the session on
-  claude.ai.
+  claude.ai. A preview chip whose deployment is rebuilding — the deploy check
+  still running after a push — spins until the new one is live, then resolves
+  to the globe.
 
 The pill colours are the dashboard's, with one change: `IN REVIEW` is teal
 rather than the same grey as `DRAFT` — the two were indistinguishable, and a

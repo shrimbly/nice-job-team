@@ -53,7 +53,8 @@ struct BoardPanel: View {
 
     /// The margin around the cards and the gap between them are one number, so the
     /// stack reads as evenly spaced rather than as cards inset inside a frame.
-    private static let cardSpacing: CGFloat = 8
+    /// Shared with the toast stack — see `ToastStackView.width`.
+    static let cardSpacing: CGFloat = 8
 
     enum Tab: String {
         case board
@@ -98,7 +99,9 @@ struct BoardPanel: View {
 
     /// The width the panel is fixed to. The chooser is placed against it, so a chip
     /// near the right edge does not raise a menu that hangs off the side.
-    private static let width: CGFloat = 388
+    /// Shared with the toast stack, whose banners are the panel's cards at
+    /// banner size — see `ToastStackView.width`.
+    static let width: CGFloat = 388
 
     private let tick = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
 
@@ -181,7 +184,10 @@ struct BoardPanel: View {
                                 toggle: { toggle(entry.id) },
                                 open: openLink,
                                 copied: showCopied,
-                                chose: showChooser)
+                                chose: showChooser,
+                                dismiss: entry.card.dismissalRef.map { ref in
+                                    { dismissCard(ref) }
+                                })
                                 // Each card resolves out of a blur a beat after the
                                 // one above it. Every card takes part now that the
                                 // stack builds them all, on screen or not, which is
@@ -352,6 +358,11 @@ struct BoardPanel: View {
                 openLink(url)
             }
         }
+    }
+
+    /// Takes a card off the board for good — any card; see `Card.dismissalRef`.
+    private func dismissCard(_ ref: String) {
+        Task { await store.dismissCard(ref) }
     }
 
     private func dismissReview(_ review: Review) {

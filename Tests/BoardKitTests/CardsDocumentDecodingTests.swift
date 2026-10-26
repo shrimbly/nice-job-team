@@ -68,6 +68,26 @@ struct CardsDocumentDecodingTests {
         }
     }
 
+    @Test("previewPending decodes true, false, and absent as not-set")
+    func previewPendingDecodes() throws {
+        // A minimal card document, with the key present either way and absent —
+        // absent is what a document from a CLI that predates the field reads as.
+        func card(_ pending: Bool?) throws -> Card {
+            var json: [String: Any] = [
+                "id": "c", "num": 1, "title": "t", "branch": "b",
+                "boardState": "pr-open", "ci": "green", "threads": 0, "draft": false,
+                "needsOperator": false, "whatItIs": "w",
+                "pill": ["label": "Working", "tone": "agent"],
+            ]
+            if let pending { json["previewPending"] = pending }
+            return try JSONDecoder().decode(
+                Card.self, from: try JSONSerialization.data(withJSONObject: json))
+        }
+        #expect(try card(nil).previewPending == nil)
+        #expect(try card(false).previewPending == false)
+        #expect(try card(true).previewPending == true)
+    }
+
     @Test("a null generatedAt-shaped stamp reads as no date, not a crash")
     func badGeneratedAt() throws {
         let doc = CardsDocument(version: 2, generatedAt: "yesterday-ish", note: nil, projects: [])
@@ -78,7 +98,16 @@ struct CardsDocumentDecodingTests {
 
     @Test("a document without the reviews key reads as unavailable, not clear")
     func reviewsAbsent() throws {
-        let doc = try document()
+        // Inline rather than the fixture: the current CLI writes the reviews key
+        // on every document, so the absent case is the backward-compat one, and
+        // depending on fixture staleness to cover it stops covering it the
+        // moment the fixture is regenerated.
+        let json = """
+        {"version": 2, "generatedAt": "2026-09-03T00:00:00Z", "note": null,
+         "projects": [
+           {"key": "a", "shortName": "A", "trackerKind": "linear", "cards": []}]}
+        """
+        let doc = try JSONDecoder().decode(CardsDocument.self, from: Data(json.utf8))
         #expect(!doc.reviewsAvailable)
         #expect(doc.reviews.isEmpty)
         #expect(!doc.reviewsCountAsNeedsYou)

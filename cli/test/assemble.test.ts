@@ -326,15 +326,17 @@ describe('assembler', () => {
   test('encodesExplicitNulls: cards serialize every field, writing absent optionals as explicit nulls', () => {
     const cards = assembleOne(absent(), prs, 'acme');
     // Matching jq's shape is what lets app output diff against the dashboard:
-    // the JSON round-trip drops undefined-valued keys, so 27 surviving keys
-    // proves every absent optional went out as an explicit null.
+    // the JSON round-trip drops undefined-valued keys, so 28 surviving keys
+    // proves every absent optional went out as an explicit null — the jq's 27
+    // plus the one app-mode key, previewPending, which is always set here.
     const objects = cards.map(
       (card) => JSON.parse(JSON.stringify(card)) as Record<string, unknown>,
     );
-    expect(Object.keys(objects[0]!)).toHaveLength(27);
-    expect(Object.keys(objects[0]!)).toEqual([...CARD_KEYS]);
+    expect(Object.keys(objects[0]!)).toHaveLength(28);
+    expect(Object.keys(objects[0]!)).toEqual([...CARD_KEYS, 'previewPending']);
     expect(objects[0]!['workspaceUrl']).toBeNull();
     expect(objects[0]!['ticketKey']).toBeNull();
+    expect(objects[0]!['previewPending']).toBe(false);
   });
 });
 
@@ -478,6 +480,55 @@ describe('multi-project', () => {
     expect(cards[0]?.card.id).toBe('pr:acme/desktop#99');
   });
 
+  // Adding a repository to the orchestrator hands the board every stale open
+  // PR left in it. Those cannot be hidden by a state — they have no item to
+  // hold one — so the ledger subtracts them here, where the card is invented.
+  test('dismissedPRsAreNotSynthesized: a dismissed PR makes no card', () => {
+    const withLedger: AssemblerConfig = {
+      ...twoRepos,
+      dismissed: new Set(['pr:acme/desktop#99']),
+    };
+    const cards = assemble(
+      [
+        { project: ref('platform'), snapshot: snap([]) },
+        { project: ref('desktop'), snapshot: snap([]) },
+      ],
+      [pr(99, 'acme/desktop', 'a PR nobody tracked'), pr(100, 'acme/desktop', 'one still wanted')],
+      withLedger,
+    );
+
+    expect(cards.map((c) => c.card.id)).toEqual(['pr:acme/desktop#100']);
+  });
+
+  // Any card can be dismissed, by its own id — including one an item stands
+  // behind, which is why the subtraction is on the finished cards and not on
+  // the synthesis. Dismissing it hides the card, not the item.
+  test('dismissalReachesItemBackedCards: an item-backed card goes by its item id', () => {
+    const claimed = item('itm_1', 'pr-open');
+    claimed.pr = { number: 99, url: null };
+    const cards = assemble(
+      [{ project: ref('desktop'), snapshot: snap([claimed]) }],
+      [pr(99, 'acme/desktop', 'a PR an item tracks')],
+      { ...twoRepos, dismissed: new Set(['itm_1']) },
+    );
+
+    expect(cards).toHaveLength(0);
+  });
+
+  // And the PR reference is NOT the item's card id, so dismissing the pull
+  // request does not reach the card the item titles.
+  test('dismissingThePRDoesNotHideTheItemsCard: the ids are different things', () => {
+    const claimed = item('itm_1', 'pr-open');
+    claimed.pr = { number: 99, url: null };
+    const cards = assemble(
+      [{ project: ref('desktop'), snapshot: snap([claimed]) }],
+      [pr(99, 'acme/desktop', 'a PR an item tracks')],
+      { ...twoRepos, dismissed: new Set(['pr:acme/desktop#99']) },
+    );
+
+    expect(cards.map((c) => c.card.id)).toEqual(['itm_1']);
+  });
+
   test('unownedPRStillAppears: a PR whose repo matches no project still gets exactly one card', () => {
     const cards = assemble(
       [
@@ -527,15 +578,15 @@ describe('multi-project', () => {
   test('derivedKeyMatchesSetup: the derivation mirrors setup.sh, and an explicit key still wins', () => {
     // setup.sh: tr '[:upper:]' '[:lower:]' | sed 's#[^a-z0-9]\{1,\}#-#g'
     expect(derivedKey('acme/platform')).toBe('acme-platform');
-    expect(derivedKey('acme/desktop')).toBe('acme-desktop');
+    expect(derivedKey('acme/Widget-Desktop')).toBe('acme-widget-desktop');
 
     // A real config had `key: acme-desktop` against that same repo, which
     // the derivation does not produce. The directory under p/ follows the key,
     // so deriving when a key is written would look in a directory that is not
     // there and show the project as having no work.
     const config = assemblerConfig({
-      repos: [{ name: 'acme/desktop', key: 'acme-desktop' }],
+      repos: [{ name: 'acme/Widget-Desktop', key: 'acme-desktop' }],
     });
-    expect(shortNameFor(config, 'acme-desktop')).toBe('desktop');
+    expect(shortNameFor(config, 'acme-desktop')).toBe('Widget-Desktop');
   });
 });

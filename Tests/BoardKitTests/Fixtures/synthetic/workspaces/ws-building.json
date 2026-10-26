@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "workspaceId": "ws-building",
-  "state": "building",
-  "phase": "working on the reports members"
+ "version": 1,
+ "workspaceId": "ws-building",
+ "state": "building",
+ "phase": "writing the decoder"
 }

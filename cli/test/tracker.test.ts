@@ -283,7 +283,7 @@ function layout(): { root: OrchRoot; projectDir: string } {
 }
 
 describe('runPoll with a github-issues tracker', () => {
-  test('collects the backlog into signals/tasks.json and prints the Backlog section', () => {
+  test('collects the backlog into signals/tasks.json and prints the Backlog section', async () => {
     const { root, projectDir } = layout();
     // Issue 9 is already on the board as a github-issues item — the summary
     // must skip it, and only the kind that matches the tracker claims a task.
@@ -307,7 +307,7 @@ describe('runPoll with a github-issues tracker', () => {
         { number: 9, title: 'Already on the board', labels: [{ name: 'urgent' }], updatedAt: '2026-09-01T00:00:00Z' },
       ],
     });
-    const summary = runPoll(root, projectDir, ISSUES_CONFIG, io, { ghPath: '/stub/gh' });
+    const summary = await runPoll(root, projectDir, ISSUES_CONFIG, io, { ghPath: '/stub/gh' });
     const lines = summary.split('\n');
 
     // The section keeps poll.sh's line shape; the header names the kind that
@@ -335,21 +335,21 @@ describe('runPoll with a github-issues tracker', () => {
     });
   });
 
-  test('a failing gh is a silent empty backlog: [] in the signal, no section at all', () => {
+  test('a failing gh is a silent empty backlog: [] in the signal, no section at all', async () => {
     const { root, projectDir } = layout();
     const { io, warnings } = makeIo({ issuesFail: true });
-    const summary = runPoll(root, projectDir, ISSUES_CONFIG, io, { ghPath: '/stub/gh' });
+    const summary = await runPoll(root, projectDir, ISSUES_CONFIG, io, { ghPath: '/stub/gh' });
     expect(summary).not.toContain(HEADER_BACKLOG);
     const doc = JSON.parse(readFileSync(join(projectDir, 'signals', 'tasks.json'), 'utf8'));
     expect(doc.tasks).toEqual([]);
     expect(warnings.filter((w) => w.includes('issue'))).toEqual([]);
   });
 
-  test('a linear (or absent) tracker still collects no tasks', () => {
+  test('a linear (or absent) tracker still collects no tasks', async () => {
     const { root, projectDir } = layout();
     const { io, calls } = makeIo({ issues: [{ number: 1, title: 'x' }] });
     const config: BoardConfigFile = { ...ISSUES_CONFIG, tracker: { kind: 'linear' } };
-    runPoll(root, projectDir, config, io, { ghPath: '/stub/gh' });
+    await runPoll(root, projectDir, config, io, { ghPath: '/stub/gh' });
     const doc = JSON.parse(readFileSync(join(projectDir, 'signals', 'tasks.json'), 'utf8'));
     expect(doc.tasks).toEqual([]);
     expect(calls.some((c) => c.args[0] === 'issue')).toBe(false);

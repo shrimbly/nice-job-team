@@ -195,8 +195,8 @@ reasoning, or this conversation. Then:
 
 ```bash
 board dispatch \
-  --slug eng-584-data-table \
-  --branch dev/eng-584-audit-page-denser-more-informative-data-table \
+  --slug eng-584-log-table \
+  --branch dev/eng-584-tidy-audit \
   --base main \
   --repo acme/website
 ```
@@ -237,7 +237,7 @@ Three dispatch rules that matter:
   |---|---|
   | ENG-631 - Remove API key fields | Try it: stop asking a signed-in user for an API key |
   | ENG-629 - Add requirements filter | Requirements step: add a real filter, stop Enter eating the query |
-  | ENG-623 - Reframe adjust toggles | Adjust toggles: make the two modes look different |
+  | ENG-623 - Reframe restrict toggles | Restrict toggles: make the two modes look different |
   | ENG-645 - Region names and scaling copy | Deploy form: readable regions, a default, and the scaling model |
 
   The ticket number goes first so a row can be cross-referenced against Linear without
@@ -258,7 +258,30 @@ board dispatch --item itm_007 --host cloud
 ```
 
 It fires a **routine API trigger**, which returns a session id and URL, and records
-`host: "cloud"` and `session: {id, url}` on the item. It cannot go through
+`host: "cloud"` and `session: {id, url}` on the item.
+
+### Choosing the agent (and, for opencode, the model)
+
+Dispatch spawns Claude by default. To use another agent, pass `--agent`:
+
+```bash
+board dispatch --item itm_007 --agent codex
+board dispatch --item itm_007 --agent opencode --model "glm 5.3"
+```
+
+Supported: `claude`, `codex`, `gemini`, `copilot`, `amp` (all Superset presets),
+and `opencode`. When the operator says something like "use glm 5.3 in opencode",
+that is `--agent opencode --model "glm 5.3"` — the model name resolves through
+`config.models` (e.g. `"glm 5.3" → "zhipuai/glm-4.6"`), or you may hand the exact
+`provider/model` id. Only opencode takes a model; the presets pick their own.
+A repo can set its own default with `repos[].agent`, and `--agent` overrides it.
+
+Two one-time prerequisites for the non-Claude agents: run `board agents
+install-skills` so Codex and OpenCode can find the implementer skill, and make
+sure the chosen provider is authenticated in that tool (e.g. the opencode model's
+provider). Non-Claude agents have no Stop hook, so the skill has them run `board
+status observe` themselves — the board tracks them through the status file and
+GitHub, exactly as it tracks a cloud agent. It cannot go through
 `claude --cloud`: that flag requires a TTY and refuses any invocation whose stdout
 is piped, which is every invocation a script makes. The one-time routine and token
 setup is in `reference/cloud-sessions.md`, and `board cloud check` says

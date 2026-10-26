@@ -40,6 +40,13 @@ export interface AssemblerConfig {
   /** Project key → the "owner/name" that project orchestrates. */
   repoNames: Record<string, string>;
   ticket: TicketLink;
+  /**
+   * The card id of everything the operator has dismissed from the board — see
+   * ops/dismiss.ts. Empty unless the caller loaded the ledger, because the
+   * ledger lives at the orchestrator root and this config is derived from
+   * config.json alone; the `--repos` path has no root and so no dismissals.
+   */
+  dismissed?: ReadonlySet<string>;
 }
 
 /**
@@ -367,7 +374,15 @@ function projectCards(
     'app',
   );
 
-  return payload.cards.filter((card) => !hasLanded(card, snapshot.mergedPRNumbers));
+  const dismissed = config.dismissed;
+  return payload.cards
+    .filter((card) => !hasLanded(card, snapshot.mergedPRNumbers))
+    // Subtracted here, on the finished cards, rather than up at the synthesis:
+    // a dismissal is about a card, and the operator can dismiss any of them —
+    // one the board invented for a pull request, or one an item stands behind.
+    // Hiding an item's card hides only the card; the item stays in board.json
+    // and everything that reasons about it goes on doing so.
+    .filter((card) => dismissed === undefined || !dismissed.has(card.id));
 }
 
 /**

@@ -79,12 +79,19 @@ honest form: "rebased past #355, force-pushed, CI green".
 If you are unsure whether the last write is still true, write again. It costs one
 command and it is the difference between the operator seeing your work and not.
 
-One kind of bookkeeping you never do: git facts. The plugin's Stop hook runs
-`board status observe` whenever your session stops, recording branch, dirt, unpushed
-commits and HEAD into the status file on its own. So your writes are about **intent**
-— state, phase, summary, what you decided and why — not about what `git status` would
-say. The hook only observes; it never speaks for you, so the write-when-work-ends
-discipline above still stands.
+One kind of bookkeeping you normally never do: git facts. Under Claude Code the
+plugin's Stop hook runs `board status observe` whenever your session stops,
+recording branch, dirt, unpushed commits and HEAD into the status file on its own.
+So your writes are about **intent** — state, phase, summary, what you decided and
+why — not about what `git status` would say. The hook only observes; it never
+speaks for you, so the write-when-work-ends discipline above still stands.
+
+**If your runtime has no such hook** — you are Codex, OpenCode, Gemini, Copilot, or
+any agent other than Claude Code — then nothing records those git facts for you, so
+run `board status observe` yourself at the end of each working turn, right after your
+intent write. It is a plain command, safe to over-call, and it is what keeps the
+board's "clean and pushed" checks honest for your work. (Under Claude Code it is
+redundant with the hook and you can skip it.)
 
 If any of those disagree with the brief — wrong branch, missing base, a workspace
 that already has commits you did not write — **stop and ask** (`board status ask "…"`). A

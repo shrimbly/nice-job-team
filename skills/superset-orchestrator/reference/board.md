@@ -73,7 +73,7 @@ keeps its history, it just stops occupying the board.
   "items": [
     {
       "id": "itm_007",
-      "slug": "eng-142-data-table",
+      "slug": "eng-142-log-table",
       "title": "Denser, more informative audit log table",
       "domain": "run-history",
       "state": "pr-open",
@@ -81,13 +81,13 @@ keeps its history, it just stops occupying the board.
       "source": { "kind": "linear", "externalId": "ENG-142", "url": "https://linear.app/acme/issue/ENG-142/…" },
       "outcome": "The run history table fits ~40% more rows and each row states its own timing without a hover.",
       "repo": "acme/website",
-      "branch": "dev/eng-142-run-history-denser-more-informative-data-table",
+      "branch": "dev/eng-142-run-history-denser-more-informative-log-table",
       "baseBranch": "main",
       "blockedBy": null,
       "stackParent": null,
       "workspaceId": "3f1c…",
       "supersetTaskId": null,
-      "briefPath": "~/.claude/superset-orchestrator/briefs/eng-142-data-table.md",
+      "briefPath": "~/.claude/superset-orchestrator/briefs/eng-142-log-table.md",
       "pr": {
         "number": 441,
         "url": "https://github.com/acme/website/pull/441",
@@ -127,7 +127,7 @@ The implementation agent owns this file end to end; you only read it.
   "version": 1,
   "workspaceId": "3f1c…",
   "itemId": "itm_007",
-  "slug": "eng-142-data-table",
+  "slug": "eng-142-log-table",
   "branch": "dev/eng-142-…",
   "state": "awaiting-approval",
   "updatedAt": "2026-07-30T08:41:03Z",

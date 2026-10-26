@@ -36,8 +36,18 @@ struct CardRow: View {
     /// panel can raise the chooser over it. Drawn there rather than here because a
     /// menu inside a card would be clipped by the card and by the scroll view.
     var chose: (CGRect, [StackRow], StackMenu.Target) -> Void = { _, _, _ in }
+    /// Takes the card off the board for good. Nil on a card that cannot be
+    /// dismissed — one an item stands behind, whose state is what hides it —
+    /// so the affordance is absent rather than present and refusing.
+    var dismiss: (() -> Void)? = nil
 
     @State private var isHovering = false
+    @State private var isHoveringDismiss = false
+    /// A dismissal is permanent, so it takes two clicks: the first arms and
+    /// colours the ×, the second dismisses. Leaving the button disarms — an
+    /// armed × the pointer wandered away from must not fire a week later. The
+    /// reviews lane's × behaves the same way, and for the same reason.
+    @State private var dismissArmed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Metrics {
@@ -46,6 +56,10 @@ struct CardRow: View {
         /// The status and the links are the same height, so the second row is one
         /// strip rather than two things of different sizes sitting side by side.
         static let strip: CGFloat = 20
+        /// The dismissal ×. Under the strip, so it does not read as a chip that
+        /// wandered up a row, and well over the glyph it holds, so the box is
+        /// what takes the click.
+        static let dismiss: CGFloat = 17
     }
 
     var body: some View {
@@ -74,21 +88,41 @@ struct CardRow: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: Metrics.gap) {
-                Text(card.title)
-                    .font(Typography.title)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    // The title is the first thing truncated and the thing most
-                    // worth reading, so the whole of it stays reachable.
-                    .help(card.title)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.down")
-                    .font(Typography.Icon.chevron)
-                    .foregroundStyle(Palette.faint)
-                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                    .animation(Motion.disclosure(reduceMotion: reduceMotion), value: isExpanded)
-                    .frame(width: 14)
+                // The chevron rides with the title rather than sitting at the
+                // far edge: it is the title's own affordance — press here and
+                // this opens — and at the edge it read as belonging to the card
+                // as a whole, next to a × that means something else entirely.
+                // The title truncates first, so the chevron follows it wherever
+                // it ends.
+                HStack(spacing: 5) {
+                    Text(card.title)
+                        .font(Typography.title)
+                        .foregroundStyle(Palette.ink)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        // The title is the first thing truncated and the thing
+                        // most worth reading, so the whole of it stays reachable.
+                        .help(card.title)
+                    Image(systemName: "chevron.down")
+                        .font(Typography.Icon.chevron)
+                        .foregroundStyle(Palette.faint)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                        .animation(Motion.disclosure(reduceMotion: reduceMotion), value: isExpanded)
+                        .frame(width: 10)
+                }
+                Spacer(minLength: 6)
+                // Top right, and its slot is held whether or not it is showing.
+                // Revealing it on hover would reflow the row at the moment the
+                // pointer arrives, which moves the target while it is being
+                // aimed at — so it fades in instead, in space that was always
+                // its own.
+                if let dismiss {
+                    dismissButton(dismiss)
+                        .opacity(isHovering || dismissArmed ? 1 : 0)
+                        .allowsHitTesting(isHovering || dismissArmed)
+                        .animation(Motion.disclosure(reduceMotion: reduceMotion),
+                                   value: isHovering || dismissArmed)
+                }
             }
             // The status leads the links: where the card has got to, then the places
             // to go and look at it. The pill holds the row's height on its own, so a
@@ -179,12 +213,64 @@ struct CardRow: View {
             // The only one whose label said nothing the icon does not. Unchanged on
             // a stacked card — a preview is a preview however many there are — but
             // it asks which one, the same way the pull-request chip does.
+            // The preview refreshes on every push; while the deploy is still
+            // building, the chip says so instead of sitting there looking live.
+            // That matters most in the empty slot, which on its own cannot tell
+            // "this project has no previews" from "the first one is seconds
+            // away" — so when there is nothing to open yet, the spinner is the
+            // only thing saying one is coming, and the hover has to agree.
             Chip(help: previews.count > 1 ? "\(previews.count) preview deployments — click to choose one"
-                                          : "Preview deployment",
-                 absent: "No preview deployment",
-                 kind: .preview, url: previewUrl, open: open, copied: copied,
+                                          : previewHelp,
+                 absent: absentPreviewHelp,
+                 kind: .preview(pending: card.previewPending == true),
+                 url: previewUrl, open: open, copied: copied,
                  pressed: previews.count > 1 ? { chose($0, previews, .preview) } : nil)
         }
+    }
+
+    /// The × that takes a card off the board. Built like the chips below it —
+    /// a squircle that fills under the pointer — because it is a button, and
+    /// the glyph alone was one: a 14pt mark is a 14pt target, and the operator
+    /// had to hunt for it. The box is what takes the click, not the ink, which
+    /// is what lets the mark itself stay small.
+    private func dismissButton(_ dismiss: @escaping () -> Void) -> some View {
+        Button {
+            if dismissArmed {
+                dismissArmed = false
+                dismiss()
+            } else {
+                dismissArmed = true
+            }
+        } label: {
+            Image(systemName: "xmark")
+                .font(Typography.Icon.dismiss)
+                .foregroundStyle(dismissArmed
+                    ? Palette.foreground(.bad)
+                    : (isHoveringDismiss ? Palette.ink : Palette.soft))
+                .frame(width: Metrics.dismiss, height: Metrics.dismiss)
+                .background(dismissBackground, in: RoundedRectangle.squircle(5))
+                .overlay(RoundedRectangle.squircle(5)
+                    .stroke(dismissArmed ? Palette.foreground(.bad).opacity(0.9) : .clear,
+                            lineWidth: 1))
+                // The whole box, not the glyph's own bounds.
+                .contentShape(RoundedRectangle.squircle(5))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHoveringDismiss = hovering
+            if !hovering { dismissArmed = false }
+        }
+        .help(dismissArmed
+            ? "Click again to take this card off the board"
+            : "Dismiss — take this card off the board (click twice). "
+                + "The work is untouched; `board undismiss` puts it back.")
+    }
+
+    /// Armed is the loud state, so it is the one that fills. Hover is the chips'
+    /// own quiet lift.
+    private var dismissBackground: Color {
+        if dismissArmed { return Palette.background(.bad) }
+        return isHoveringDismiss ? Palette.ink.opacity(0.09) : .clear
     }
 
     private var isCloud: Bool { host == "cloud" }
@@ -215,6 +301,21 @@ struct CardRow: View {
     /// rather than showing an empty slot beside three deployments.
     private var previewUrl: String? {
         card.previewUrl ?? previews.last?.previewUrl
+    }
+
+    /// Said when the single preview is rebuilding: the chip's hover names what
+    /// the spinner shows.
+    private var previewHelp: String {
+        card.previewPending == true ? "Preview deployment — rebuilding…" : "Preview deployment"
+    }
+
+    /// Said when there is nothing to open. "Building" rather than "rebuilding":
+    /// there is no previous deployment to replace, which is exactly why the
+    /// empty slot is worth explaining.
+    private var absentPreviewHelp: String {
+        card.previewPending == true
+            ? "First preview deployment — building…"
+            : "No preview deployment"
     }
 
     /// A stacked chip names what it stands for, in the order the PRs have to land,
@@ -346,7 +447,9 @@ private struct Chip: View {
         case pullRequest(isDraft: Bool, stacked: Bool = false)
         /// `isLinear` picks the drawn mark over a named symbol — see `glyph`.
         case ticket(isLinear: Bool)
-        case preview
+        /// `pending` swaps the globe for a spinner — the deployment the URL
+        /// points at is being replaced right now.
+        case preview(pending: Bool)
 
         /// `arrow.triangle.pull` is the closest thing SF Symbols has to GitHub's own
         /// `git-pull-request` glyph, and it is the same shape. Linear has no symbol
@@ -360,7 +463,8 @@ private struct Chip: View {
             // The count beside it says how many; the glyph says that there is more
             // than one at all, from across the panel and before the label is read.
             case .pullRequest(_, let stacked): stacked ? "square.stack" : "arrow.triangle.pull"
-            case .preview: "globe"
+            // The spinner is drawn, not named — see `glyph`.
+            case .preview(let pending): pending ? nil : "globe"
             }
         }
 
@@ -486,6 +590,8 @@ private struct Chip: View {
             // inheriting the stack's foreground style.
             LinearMark().fill(foreground).frame(width: 11, height: 11)
                 .frame(width: Self.glyphWidth)
+        } else if case .preview(pending: true) = kind {
+            DeploySpinner().frame(width: Self.glyphWidth)
         } else if let icon = kind.icon {
             Image(systemName: icon)
                 .font(Typography.Icon.chip)
@@ -514,5 +620,26 @@ private struct Chip: View {
         guard isLive else { return Palette.rule2.opacity(0.55) }
         if let accent = kind.accent { return accent.opacity(isHovering ? 0.95 : 0.4) }
         return isHovering ? Palette.soft : Palette.rule2
+    }
+}
+
+/// The deploy in flight: a dotted circle turning, doing the system spinner's job
+/// inside the chip's own 12pt frame and inheriting the chip's ink. Still under
+/// reduced motion — a perpetually turning element is exactly the motion being
+/// declined — where the dotted circle alone carries "not finished yet".
+private struct DeploySpinner: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var spinning = false
+
+    var body: some View {
+        Image(systemName: "circle.dotted")
+            .font(Typography.Icon.chip)
+            .rotationEffect(.degrees(spinning ? 360 : 0))
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) {
+                    spinning = true
+                }
+            }
     }
 }

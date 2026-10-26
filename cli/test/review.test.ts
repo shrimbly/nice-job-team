@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { assemblerConfig } from '../src/cards/assemble.js';
-import { REVIEW_FIELDS, collectReviewRequests } from '../src/facts/github.js';
+import { collectReviewRequests } from '../src/facts/github.js';
 import {
   DEFAULT_REVIEW_PROMPT,
   dismissedFile,
@@ -91,46 +91,65 @@ function project(base: string, key: string, reviews: unknown): ProjectRef {
 
 // ── Collection ────────────────────────────────────────────────────────────────
 
+/** The reviews lane is now one cross-repo GraphQL search — build its response. */
+function searchResp(nodes: unknown[]): string {
+  return JSON.stringify({ data: { search: { nodes } } });
+}
+function isGraphql(args: string[]): boolean {
+  return args[0] === 'api' && args[1] === 'graphql';
+}
+
 describe('collectReviewRequests', () => {
-  test('one search per repo, author excluded in the search itself', () => {
+  test('one cross-repo search, author excluded in the query itself', () => {
     const { io, calls } = makeIo((cmd, args) => {
-      if (cmd === '/gh' && args[1] === 'list') return ok('[]');
+      if (cmd === '/gh' && isGraphql(args)) return ok(searchResp([]));
       return undefined;
     });
     collectReviewRequests(io, '/gh', ['o/r', 'o/s'], 'dev');
-    expect(calls).toHaveLength(2);
-    expect(calls[0]!.args).toEqual([
-      'pr', 'list', '--repo', 'o/r',
-      '--search', 'review-requested:dev -author:dev',
-      '--state', 'open', '--limit', '30', '--json', REVIEW_FIELDS,
-    ]);
+    // One operation for the whole queue, not one per repo.
+    expect(calls).toHaveLength(1);
+    const query = calls[0]!.args.find((a) => a.startsWith('query='))!;
+    expect(query).toContain('repo:o/r repo:o/s');
+    expect(query).toContain('review-requested:dev -author:dev');
+    expect(query).toContain('is:pr is:open');
   });
 
   test('maps rows, sorts the whole queue newest-updated first across repos', () => {
     const { io } = makeIo((cmd, args) => {
-      if (cmd !== '/gh') return undefined;
-      const repo = args[args.indexOf('--repo') + 1];
-      if (repo === 'o/r') {
-        return ok(JSON.stringify([
-          { number: 1, title: 'old', url: 'u1', headRefName: 'b1', baseRefName: 'main', isDraft: true, updatedAt: '2026-08-01T00:00:00Z', author: { login: 'alice' } },
+      if (cmd === '/gh' && isGraphql(args)) {
+        return ok(searchResp([
+          { number: 1, title: 'old', url: 'u1', headRefName: 'b1', baseRefName: 'main', isDraft: true, updatedAt: '2026-08-01T00:00:00Z', author: { login: 'alice' }, repository: { nameWithOwner: 'o/r' } },
+          { number: 2, title: 'new', url: 'u2', headRefName: 'b2', baseRefName: 'dev', isDraft: false, updatedAt: '2026-09-01T00:00:00Z', author: { login: 'bob' }, repository: { nameWithOwner: 'o/s' } },
         ]));
       }
-      return ok(JSON.stringify([
-        { number: 2, title: 'new', url: 'u2', headRefName: 'b2', baseRefName: 'dev', isDraft: false, updatedAt: '2026-09-01T00:00:00Z', author: { login: 'bob' } },
-      ]));
+      return undefined;
     });
     const rows = collectReviewRequests(io, '/gh', ['o/r', 'o/s'], '@me');
     expect(rows.map((r) => r.number)).toEqual([2, 1]);
     expect(rows[1]).toMatchObject({ repo: 'o/r', author: 'alice', isDraft: true, headRefName: 'b1' });
   });
 
+  test('maps the repo back to the configured spelling regardless of GitHub casing', () => {
+    const { io } = makeIo((cmd, args) => {
+      if (cmd === '/gh' && isGraphql(args)) {
+        return ok(searchResp([
+          { number: 5, title: 't', url: 'u', headRefName: 'h', baseRefName: 'main', isDraft: false, updatedAt: 'x', author: { login: 'a' }, repository: { nameWithOwner: 'O/R' } },
+        ]));
+      }
+      if (args[1] === 'view') return ok('{"comments":[]}');
+      return undefined;
+    });
+    const rows = collectReviewRequests(io, '/gh', ['o/r'], '@me');
+    expect(rows[0]!.repo).toBe('o/r');
+  });
+
   test('reuses the previous previewUrl and scrapes only when there is none', () => {
     const { io, calls } = makeIo((cmd, args) => {
       if (cmd !== '/gh') return undefined;
-      if (args[1] === 'list') {
-        return ok(JSON.stringify([
-          { number: 1, title: 'a', updatedAt: '2026-08-02T00:00:00Z', author: { login: 'a' } },
-          { number: 2, title: 'b', updatedAt: '2026-08-01T00:00:00Z', author: { login: 'b' } },
+      if (isGraphql(args)) {
+        return ok(searchResp([
+          { number: 1, title: 'a', url: 'u1', headRefName: 'h1', baseRefName: 'main', isDraft: false, updatedAt: '2026-08-02T00:00:00Z', author: { login: 'a' }, repository: { nameWithOwner: 'o/r' } },
+          { number: 2, title: 'b', url: 'u2', headRefName: 'h2', baseRefName: 'main', isDraft: false, updatedAt: '2026-08-01T00:00:00Z', author: { login: 'b' }, repository: { nameWithOwner: 'o/r' } },
         ]));
       }
       if (args[1] === 'view') {
@@ -152,18 +171,12 @@ describe('collectReviewRequests', () => {
     expect(calls).toHaveLength(0);
   });
 
-  test('a failed list degrades that repo to nothing, not the queue', () => {
+  test('a failed search yields an empty queue, silently', () => {
     const { io } = makeIo((cmd, args) => {
-      if (cmd !== '/gh') return undefined;
-      const repo = args[args.indexOf('--repo') + 1];
-      if (repo === 'o/bad') return FAIL;
-      if (args[1] === 'list') {
-        return ok(JSON.stringify([{ number: 3, title: 't', updatedAt: 'x', author: { login: 'c' } }]));
-      }
-      return ok('{"comments":[]}');
+      if (cmd === '/gh' && isGraphql(args)) return FAIL;
+      return undefined;
     });
-    const rows = collectReviewRequests(io, '/gh', ['o/bad', 'o/r'], '@me');
-    expect(rows.map((r) => r.number)).toEqual([3]);
+    expect(collectReviewRequests(io, '/gh', ['o/r'], '@me')).toEqual([]);
   });
 });
 

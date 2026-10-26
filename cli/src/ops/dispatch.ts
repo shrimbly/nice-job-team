@@ -17,6 +17,7 @@ import { authed, supersetCommand } from '../facts/superset.js';
 import { applyItemPatch } from '../statemachine.js';
 import { appendLog, readBoardRaw, writeBoard } from '../store.js';
 import type { BoardConfigFile, CloudIo, OrchRoot } from '../types.js';
+import { agentCreateArgs, isKnownAgent, PRESET_AGENTS, resolveModel } from './agents.js';
 import { cloudFire, realCloudIo } from './cloud.js';
 import { resolveBoardDir } from './item.js';
 
@@ -89,6 +90,7 @@ export interface DispatchOptions {
   repo?: string;
   taskId?: string;
   agent?: string;
+  model?: string;
   dryRun?: boolean;
   noItem?: boolean;
 }
@@ -298,7 +300,24 @@ export async function dispatch(deps: DispatchDeps, opts: DispatchOptions): Promi
   if (slug === '') throw new Error('need --slug');
   if (branch === '') throw new Error('need --branch');
   if (repo === '') throw new Error('need --repo');
+  // Which agent: the --agent flag wins, then the repo's own default, then the
+  // global default. An unknown name is refused rather than passed to Superset,
+  // where it would fail late with a murkier message.
+  if (agent === '') agent = repoCfg(config, repo, 'agent', '');
   if (agent === '') agent = interp(cfg<unknown>(config, '.superset.agent', 'claude'));
+  if (!isKnownAgent(agent)) {
+    throw new Error(
+      `unknown --agent '${agent}' — known agents: ${[...PRESET_AGENTS, 'opencode'].join(', ')}`,
+    );
+  }
+  // The model only means something to a command agent (opencode); resolved
+  // through the config alias table so "glm 5.3" reaches the runner as its real
+  // provider/model id. A preset agent picks its own model, so this is ignored.
+  const modelsAlias = isObj(config.models) ? (config.models as Record<string, string>) : undefined;
+  let model = resolveModel(modelsAlias, opts.model ?? '');
+  if (model === '' && agent === 'opencode') {
+    model = resolveModel(modelsAlias, interp(cfg<unknown>(config, '.agents.opencode.defaultModel', '')));
+  }
 
   const project = repoCfg(config, repo, 'supersetProjectId', '');
   if (project === '') {
@@ -423,6 +442,18 @@ export async function dispatch(deps: DispatchDeps, opts: DispatchOptions): Promi
     `You are ${item !== '' ? item : slug} on branch ${branch}, based on ${base}, in repo ${repo}.\n` +
     'Write your status file before you start work.';
 
+  // --effort is documented but absent from some CLI builds; only pass it if
+  // real. The probe is `create --help`, which mutates nothing. Command agents
+  // (opencode) take a model, not an effort preset, so the probe is skipped for
+  // them.
+  const effort = interp(cfg<unknown>(config, '.superset.effort', ''));
+  const { cmd, env } = supersetCommand(io);
+  let supportsEffort = false;
+  if (effort !== '' && PRESET_AGENTS.has(agent)) {
+    const help = io.exec(cmd, ['workspaces', 'create', '--help'], { env });
+    supportsEffort = (help.stdout + help.stderr).includes('--effort');
+  }
+
   const args = [
     'workspaces',
     'create',
@@ -435,20 +466,8 @@ export async function dispatch(deps: DispatchDeps, opts: DispatchOptions): Promi
     branch,
     '--base-branch',
     base,
-    '--agent',
-    agent,
-    '--prompt',
-    prompt,
+    ...agentCreateArgs({ agent, prompt, effort, model, supportsEffort }),
   ];
-
-  // --effort is documented but absent from some CLI builds; only pass it if
-  // real. The probe is `create --help`, which mutates nothing.
-  const effort = interp(cfg<unknown>(config, '.superset.effort', ''));
-  const { cmd, env } = supersetCommand(io);
-  if (effort !== '') {
-    const help = io.exec(cmd, ['workspaces', 'create', '--help'], { env });
-    if ((help.stdout + help.stderr).includes('--effort')) args.push('--effort', effort);
-  }
 
   if (dry) {
     return [`superset ${args.map(shellQuote).join(' ')} --json`];
@@ -595,6 +614,9 @@ function parseArgs(argv: string[]): DispatchOptions {
         break;
       case '--agent':
         opts.agent = value();
+        break;
+      case '--model':
+        opts.model = value();
         break;
       case '--dry-run':
         opts.dryRun = true;

@@ -6,7 +6,7 @@ import SwiftUI
 final class StatusItemController: NSObject, NSApplicationDelegate {
     private let store = BoardStore()
     private let presentation = PanelPresentation()
-    private var systemNotifier: SystemNotifier!
+    private var toastCenter: ToastCenter!
     private var statusItem: NSStatusItem!
     private var window: BoardWindow!
     private var hosting: NSHostingView<BoardPanel>!
@@ -18,6 +18,11 @@ final class StatusItemController: NSObject, NSApplicationDelegate {
 
     /// The gap between the menu bar and the panel's visible top edge.
     private static let gap: CGFloat = 4
+    /// How far below the menu-bar item the banners' visible top edge sits —
+    /// more than the panel's hug, because a banner that touched the menu bar
+    /// read as part of it. Matches `ToastCenter.topInset`, so the window's
+    /// slide band reaches exactly the bar's underside.
+    private static let toastGap: CGFloat = 12
     /// How close the panel may come to the edge of the screen.
     private static let screenInset: CGFloat = 8
 
@@ -33,13 +38,15 @@ final class StatusItemController: NSObject, NSApplicationDelegate {
                                  openLink: { [weak self] in self?.open($0) },
                                  onResize: { [weak self] in self?.resize(to: $0) }))
         window = BoardWindow(content: hosting)
-        // The panel follows the system appearance; this pins it to one, for a look
-        // at the other without changing the whole desktop.
+        // Both windows follow the system appearance; this pins them to one, for
+        // a look at the other without changing the whole desktop.
+        let pinnedAppearance: NSAppearance?
         switch ProcessInfo.processInfo.environment["BOARD_APPEARANCE"] {
-        case "dark": window.appearance = NSAppearance(named: .darkAqua)
-        case "light": window.appearance = NSAppearance(named: .aqua)
-        default: break
+        case "dark": pinnedAppearance = NSAppearance(named: .darkAqua)
+        case "light": pinnedAppearance = NSAppearance(named: .aqua)
+        default: pinnedAppearance = nil
         }
+        window.appearance = pinnedAppearance
         // Cmd-tabbing away, or clicking the desktop, is a dismissal like any other.
         NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
@@ -62,13 +69,42 @@ final class StatusItemController: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.store.wakeFromSleep() }
         }
 
-        // Merge/preview notifications: a tap opens the PR or preview through the
-        // same link handler a chip uses. Authorization is asked once here.
-        systemNotifier = SystemNotifier(open: { [weak self] in self?.open($0) })
-        systemNotifier.requestAuthorization()
-        store.notifier = { [weak self] event in self?.systemNotifier.post(event) }
+        // Merge/preview banners, drawn by the app itself — see ToastCenter.
+        // Suppressed while the panel is up or on its way out: the operator is
+        // already looking at the board the event came from.
+        toastCenter = ToastCenter(
+            place: { [weak self] size in
+                guard let self else { return .zero }
+                return self.toastOrigin(for: size)
+            },
+            open: { [weak self] in self?.open($0) },
+            appearance: pinnedAppearance)
+        store.notifier = { [weak self] event in
+            guard let self, !window.isVisible, closeTask == nil else { return }
+            toastCenter.post(event)
+        }
         store.start()
         updateStatusItem()
+
+        // BOARD_TOAST_PROBE=1 fires four demo banners a beat apart — a full
+        // stack — carrying realistic content: a real PR title, a project chip.
+        // The links are inert. A probe, like BOARD_PROBE.
+        if ProcessInfo.processInfo.environment["BOARD_TOAST_PROBE"] == "1" {
+            Task { [weak self] in
+                let demos: [(kind: BoardNotification.Kind, title: String)] = [
+                    (.preview, "Restore control over user-installed custom nodes"),
+                    (.mergeable, "Make the open-source model allow-list an explicit choice"),
+                    (.preview, "Build-progress panel — one read-through transcript"),
+                    (.mergeable, "Tidy the models and custom-nodes step controls"),
+                ]
+                for (index, demo) in demos.enumerated() {
+                    try? await Task.sleep(for: .seconds(index == 0 ? 2 : 0.8))
+                    self?.toastCenter.post(BoardNotification(
+                        kind: demo.kind, cardId: "probe-\(index)",
+                        title: demo.title, project: "platform", url: "https://example.com"))
+                }
+            }
+        }
 
         if ProcessInfo.processInfo.environment["BOARD_PROBE"] == "1" {
             Task { [weak self] in
@@ -166,8 +202,36 @@ final class StatusItemController: NSObject, NSApplicationDelegate {
         window.makeKey()
         NSApp.activate(ignoringOtherApps: true)
         presentation.reveal(reduceMotion: reduceMotion)
+        // The panel is the surface for the same news now; banners for events the
+        // operator is about to read on the board are noise over it.
+        toastCenter?.clear()
         watchForDismissal()
         probeGeometry()
+    }
+
+    /// Centred under the menu-bar item, clamped to the screen it is on — the
+    /// same anchor the panel is placed by, for the app's other window. `size`
+    /// is the toast window's, slide band included, so the y adds the band back:
+    /// the stack's visible top sits `toastGap` below the item while the
+    /// window's own top edge reaches the menu bar's underside, which is the
+    /// mask the banner slides behind.
+    private func toastOrigin(for size: CGSize) -> NSPoint {
+        guard let button = statusItem.button, let barWindow = button.window else {
+            let limits = NSScreen.main?.visibleFrame
+                ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+            return NSPoint(x: limits.maxX - size.width - Self.screenInset,
+                           y: limits.maxY - size.height + ToastCenter.topInset)
+        }
+        let anchor = barWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        var origin = NSPoint(x: anchor.midX - size.width / 2,
+                             y: anchor.minY - Self.toastGap - size.height + ToastCenter.topInset)
+        if let screen = barWindow.screen ?? NSScreen.main {
+            let limits = screen.visibleFrame
+            let leftmost = limits.minX + Self.screenInset
+            let rightmost = limits.maxX - Self.screenInset - size.width
+            origin.x = min(max(origin.x, leftmost), max(leftmost, rightmost))
+        }
+        return origin
     }
 
     /// `BOARD_PROBE=1` prints where the panel actually landed. Reasoning about this

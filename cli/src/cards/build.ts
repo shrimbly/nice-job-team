@@ -227,7 +227,7 @@ function buildCard(
   // Field for field the object the jq builds, in CARD_KEYS order — jq -n and
   // JSON.stringify both emit keys in construction order, and the order is part
   // of the byte-parity contract.
-  return {
+  const card: Card = {
     id: item.id,
     num: orElse(item.pr?.number, null),
     title: item.title,
@@ -266,6 +266,10 @@ function buildCard(
     pill: pill(mode, item, pr, agent, needs),
     whereItsAt: whereItsAt(mode, item, pr, agent),
   };
+  // The one key app mode appends, after the jq's 27 — see Card's doc comment.
+  // The signal row computed it from the same rollup the ciState came from.
+  if (mode === 'app') card.previewPending = orElse(pr?.previewPending, false);
+  return card;
 }
 
 /**

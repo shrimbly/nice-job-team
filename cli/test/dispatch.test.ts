@@ -568,6 +568,72 @@ describe('--effort probe', () => {
   });
 });
 
+// ── multi-provider dispatch ───────────────────────────────────────────────────
+
+describe('agent selection', () => {
+  test('--agent codex dispatches the Superset preset', async () => {
+    const fx = fixture();
+    const line = (await run(fx, { item: 'itm_1', agent: 'codex', dryRun: true }))[0]!;
+    expect(line).toContain('--agent codex');
+    expect(line).toContain('--prompt');
+    expect(line).not.toContain('--command');
+  });
+
+  test('opencode dispatches via --command with the resolved model, no --agent', async () => {
+    const fx = fixture({
+      config: { ...baseConfig(), models: { 'glm 5.3': 'zhipuai/glm-4.6' } },
+    });
+    const line = (await run(fx, { item: 'itm_1', agent: 'opencode', model: 'glm 5.3', dryRun: true }))[0]!;
+    // The dry-run shell-quotes the whole line, so the --command value's spaces
+    // are escaped; assert on the tokens that survive quoting.
+    expect(line).toContain('--command');
+    expect(line).toContain('opencode');
+    expect(line).toContain('zhipuai/glm-4.6');
+    expect(line).not.toContain('--agent');
+    expect(line).not.toContain('--prompt');
+    // The implementer contract still rides in, as opencode's message arg.
+    expect(line).toContain('superset-implementer');
+  });
+
+  test('opencode falls back to the configured default model', async () => {
+    const fx = fixture({
+      config: { ...baseConfig(), agents: { opencode: { defaultModel: 'zhipuai/glm-4.6' } } },
+    });
+    const line = (await run(fx, { item: 'itm_1', agent: 'opencode', dryRun: true }))[0]!;
+    expect(line).toContain('--command');
+    expect(line).toContain('zhipuai/glm-4.6');
+  });
+
+  test("a repo's own agent is used when --agent is absent", async () => {
+    const fx = fixture({
+      config: {
+        ...baseConfig(),
+        repos: [{ name: 'octo/site', supersetProjectId: 'proj_1', defaultBase: 'main', agent: 'codex' }],
+      },
+    });
+    const line = (await run(fx, { item: 'itm_1', dryRun: true }))[0]!;
+    expect(line).toContain('--agent codex');
+  });
+
+  test('--agent overrides the repo default', async () => {
+    const fx = fixture({
+      config: {
+        ...baseConfig(),
+        repos: [{ name: 'octo/site', supersetProjectId: 'proj_1', defaultBase: 'main', agent: 'codex' }],
+      },
+    });
+    const line = (await run(fx, { item: 'itm_1', agent: 'claude', dryRun: true }))[0]!;
+    expect(line).toContain('--agent claude');
+  });
+
+  test('an unknown agent is refused before anything is created', async () => {
+    const fx = fixture();
+    await expect(run(fx, { item: 'itm_1', agent: 'cursor', dryRun: true })).rejects.toThrow(
+      /unknown --agent 'cursor'/,
+    );
+  });
+});
+
 // ── dry runs ──────────────────────────────────────────────────────────────────
 
 describe('--dry-run', () => {

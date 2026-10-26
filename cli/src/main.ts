@@ -22,7 +22,9 @@ import { runDispatch } from './ops/dispatch.js';
 import { runItem } from './ops/item.js';
 import { runReap } from './ops/reap.js';
 import { runReconcile } from './ops/reconcile.js';
+import { dismissedCardKeys, runDismiss } from './ops/dismiss.js';
 import { effectiveQueue, runReview } from './ops/review.js';
+import { runAgents } from './ops/agentskills.js';
 import {
   gatherProjects,
   loadProject,
@@ -156,7 +158,7 @@ function runDump(argv: string[]): void {
   // owns the per-(repo, number) PR dedupe the joined signal files need.
   const orch = loadRoot();
   const config = effectiveConfig(orch);
-  const appConfig: AssemblerConfig = assemblerConfig(config);
+  const appConfig: AssemblerConfig = { ...assemblerConfig(config), dismissed: dismissedCardKeys(orch) };
   const projects = selectProjects(orch, args.project);
   const gathered = gatherProjects(projects, (project) => {
     const data = loadProject(orch, project);
@@ -195,13 +197,26 @@ function printHelp(): void {
       '  board reconcile                    fold agent statuses and PR facts into board.json',
       '  board archive [--dry-run]          move long-terminal items into archive.json',
       '  board item set|add|list|show ...   read and write individual board items',
-      '  board dispatch --item <id> ...     create a workspace (or cloud session) and',
-      '                                     start an implementation agent on one item',
+      '  board dispatch --item <id> [--agent <name>] [--model <m>] ...',
+      '                                     create a workspace (or cloud session) and',
+      '                                     start an implementation agent on one item.',
+      '                                     --agent: claude|codex|gemini|copilot|amp|opencode;',
+      '                                     --model (opencode): a provider/model id or a',
+      '                                     config.models alias, e.g. "glm 5.3"',
+      '  board agents install-skills        copy the implementer skill into the Codex',
+      '                                     and OpenCode skill dirs so they can run it',
       '  board reap --item <id> ...         verify merged + clean, delete the workspace,',
       '                                     close the item; --auto reaps settled PRs',
       '  board review [list] [--dismissed]  the queue of PRs awaiting your review',
       '  board review dismiss|undismiss <owner/name#N>',
       '                                     hide one from the board for good (or undo)',
+      '  board dismiss [--list]             cards taken off the board for good',
+      '  board dismiss|undismiss <card id | owner/name#N>...',
+      '                                     take a card off the board (or put it back).',
+      '                                     Any card: an unclaimed PR by its reference,',
+      '                                     an item-backed one by its item id. Hides the',
+      '                                     card only — the item and its work are',
+      '                                     untouched.',
       '  board review start <owner/name#N> [--json|--dry-run]',
       '                                     workspace on the PR branch + a review agent',
       '                                     (prompt template: config review.prompt)',
@@ -282,6 +297,13 @@ switch (verb) {
     break;
   case 'review':
     await runReview(rest);
+    break;
+  case 'dismiss':
+  case 'undismiss':
+    process.exitCode = runDismiss(verb, rest);
+    break;
+  case 'agents':
+    runAgents(rest);
     break;
   case 'tasks':
     await runTasks(rest);

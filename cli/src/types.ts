@@ -50,6 +50,8 @@ export interface PullRequest {
   /** Unresolved threads where we spoke last — waiting on a re-review, not on us. */
   threadsAwaitingReviewer?: number | null;
   previewUrl?: string | null;
+  /** True while the preview host's own deploy check is still running. */
+  previewPending?: boolean | null;
   /** Max of review submittedAt and thread comment createdAt; ISO-8601 UTC. */
   latestActivityAt?: string | null;
   /** Reviewer login → latest review state, as poll.sh folds `reviews(last:20)`. */
@@ -255,6 +257,8 @@ export interface Pill {
  * One row on the board. Field-for-field the object render-board.sh's jq builds
  * — same 27 keys, same order, explicit nulls for every absent optional — so the
  * three implementations can be diffed byte for byte over the same input.
+ * App mode appends one key the jq predates, `previewPending`, which is why it
+ * is optional here: the reference chain must not emit it.
  */
 export interface Card {
   id: string;
@@ -285,6 +289,8 @@ export interface Card {
   pill: Pill;
   /** Null only in the one case jq produces null: an empty summary at the gate. */
   whereItsAt: string | null;
+  /** App mode only, always set there: the preview chip reads this as "rebuilding". */
+  previewPending?: boolean;
 }
 
 /**
@@ -373,6 +379,8 @@ export interface ProjectRef {
 
 export interface RepoConfig {
   name?: string;
+  /** The agent this repo's work is dispatched to, unless --agent overrides it. */
+  agent?: string;
   key?: string;
   shortName?: string;
   supersetProjectId?: string | null;
@@ -468,6 +476,15 @@ export interface BoardConfigFile {
     activeSeconds?: number;
     ciRunningSeconds?: number;
     watchSeconds?: number;
+    /**
+     * How long a GitHub poll's result may be reused from the orch-root cache
+     * before another caller re-fetches. The GitHub queries are global, so N
+     * per-project watchers plus the app were fetching the identical PR set
+     * independently; within this window they share one fetch. Defaults to
+     * three-quarters of watchSeconds (so the owning watcher still refreshes
+     * every cycle while siblings and the app reuse). 0 disables the cache.
+     */
+    pollCacheSeconds?: number;
   };
   gates?: {
     approveBeforeDispatch?: boolean;
@@ -564,6 +581,13 @@ export interface ExecOptions {
  */
 export interface PollIo {
   exec(cmd: string, args: string[], options?: ExecOptions): ExecResult;
+  /**
+   * The async twin of `exec`, for running independent commands concurrently —
+   * the per-repo `gh pr list` calls are the poll's wall-clock cost now that the
+   * GraphQL points are tamed. Optional: when a caller (or a test stub) omits it,
+   * the collectors fall back to the synchronous `exec`, running sequentially.
+   */
+  execAsync?(cmd: string, args: string[], options?: ExecOptions): Promise<ExecResult>;
   /** lib.sh's now(): ISO-8601 UTC seconds, no millis. */
   now(): string;
   /** Epoch milliseconds, for stall cutoffs and the closed-PR window. */
@@ -590,6 +614,27 @@ export interface RepoSignalBlock {
 export interface GithubSignalsDoc {
   collectedAt: string;
   repos: RepoSignalBlock[];
+  /**
+   * When the merged/closed lists were last fetched from GitHub. Those states
+   * change rarely, so the poll refetches them only every
+   * cadence.mergedClosedEverySeconds and reuses the previous lists in between;
+   * this stamps the last real fetch so the next poll can tell. Absent on a doc
+   * written before this field, which simply forces one refetch.
+   */
+  mergedClosedAt?: string;
+  /**
+   * The GraphQL budget `remaining` the last details query reported. The next
+   * poll reads it to back off (skip merged/closed, widen the cache) as the
+   * hourly budget drains, so the board never spends the agents' headroom. Null
+   * when the last poll made no details call (nothing changed) or it failed.
+   */
+  rateRemaining?: number | null;
+  /**
+   * How many open PRs the last poll actually re-enriched. 0 means an idle board
+   * (every open PR reused its previous threads), which lets the poll widen the
+   * disk-cache TTL to cadence.pollCacheIdleSeconds.
+   */
+  enrichedCount?: number;
 }
 
 /** signals/workspaces.json as written: {collectedAt, workspaces, agentStatus}. */
@@ -624,6 +669,13 @@ export interface ReviewRow {
   isDraft: boolean;
   updatedAt: string | null;
   previewUrl: string | null;
+  /**
+   * When there is no previewUrl, the `updatedAt` we last scraped this PR for
+   * and found none — the negative-result marker that stops the next poll
+   * re-running `gh pr view` on an unchanged review. Absent when a preview was
+   * found or was never looked for.
+   */
+  previewScrapedFor?: string;
 }
 
 /** signals/reviews.json as written: {collectedAt, reviews}. */
@@ -645,6 +697,31 @@ export interface DismissedReview {
 export interface DismissedReviewsDoc {
   version: 1;
   dismissed: DismissedReview[];
+}
+
+/**
+ * One dismissed card in the root-level cards-dismissed.json ledger — the
+ * board lane's counterpart to reviews-dismissed.json, and deliberately a
+ * separate file: declining to review a PR and declining to track it are two
+ * decisions, and one ledger would make either imply the other.
+ */
+export interface DismissedCard {
+  /**
+   * The card's own id, which is what the render subtracts: `pr:owner/name#N`
+   * for a card the board invented, or the board item's id for one an item
+   * stands behind. Keyed by id rather than by PR so that a card with no PR —
+   * a proposed item, an agent still working — can be dismissed too.
+   */
+  id: string;
+  /** The title at dismissal time, so the ledger reads without GitHub. */
+  title: string;
+  dismissedAt: string;
+}
+
+/** cards-dismissed.json as written: {version, dismissed}. */
+export interface DismissedCardsDoc {
+  version: 1;
+  dismissed: DismissedCard[];
 }
 
 /**

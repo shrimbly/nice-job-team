@@ -27,6 +27,20 @@ enum Motion {
     /// Long enough to read one word, short enough not to sit in the way.
     static let copiedDwell = Duration.milliseconds(1100)
 
+    /// The banners move like the web's sonner toasts: the full slide out from
+    /// under the top edge, fading as it comes, on CSS `ease` over 400ms — no
+    /// spring. The exit is that run backwards, back up under the edge it came
+    /// from and fading as it goes, and the stack closing over its place rides
+    /// the same curve at the same time, as sonner's do — one gesture, which is
+    /// why the exit and the re-forming share a duration as well as a curve.
+    static func bannerIn(reduceMotion: Bool) -> Animation {
+        reduceMotion ? easeOut(0.12) : .timingCurve(0.25, 0.1, 0.25, 1, duration: 0.4)
+    }
+    static func bannerOut(reduceMotion: Bool) -> Animation { bannerIn(reduceMotion: reduceMotion) }
+    /// How long the window stays on screen after the last banner leaves.
+    /// Matched to `bannerOut` — shorter and the fade is cut off.
+    static let bannerOutDuration = Duration.milliseconds(400)
+
     /// Opening a card. The chevron, the card's height, the cards below it that have
     /// to move down and the window that has to grow are all one gesture and take one
     /// curve, or they arrive at different times and read as several things happening

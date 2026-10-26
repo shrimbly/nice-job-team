@@ -13,10 +13,50 @@
 
 import { accessSync, constants, statSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
-import type { PollIo, RepoSignalBlock } from '../types.js';
+import type { ExecResult, PollIo, RepoSignalBlock } from '../types.js';
 import { firstPreviewMatch } from '../cards/preview.js';
 
 type Obj = Record<string, unknown>;
+
+/**
+ * How many repos' `gh pr list` passes run at once. The per-repo fetches are
+ * independent, so running them concurrently turns a 7-repo poll's wall time
+ * from the sum of seven round trips into roughly the slowest wave — but a cap
+ * keeps the burst well under GitHub's secondary (abuse) limits, which trip on
+ * too many requests in too short a window far sooner than the hourly budget.
+ */
+const REPO_FETCH_CONCURRENCY = 3;
+
+/** exec, async when the io offers it, else the sync exec wrapped in a promise
+ *  so the same code path serves both production and the synchronous test stub. */
+function runExec(io: PollIo, cmd: string, args: string[]): Promise<ExecResult> {
+  return io.execAsync ? io.execAsync(cmd, args) : Promise.resolve(io.exec(cmd, args));
+}
+
+/**
+ * Promise.all with a concurrency cap, preserving input order. A pool of `limit`
+ * workers pulls from a shared cursor, so at most `limit` commands are in flight
+ * at once regardless of how many repos are configured.
+ */
+async function mapLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) return;
+      results[index] = await fn(items[index]!, index);
+    }
+  };
+  const pool = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: pool }, () => worker()));
+  return results;
+}
 
 function isObj(value: unknown): value is Obj {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -84,9 +124,17 @@ export function locateGh(io: PollIo): string | null {
 
 // ── gh pr list ────────────────────────────────────────────────────────────────
 
-/** poll.sh's --json field list for the two open-PR queries, verbatim. */
+/**
+ * The open-PR list fields. `statusCheckRollup` is deliberately NOT here: gh's
+ * rollup pulls every CI context for every PR unbounded, and on a large repo
+ * (hundreds of open PRs' worth of checks in one response) GitHub's GraphQL
+ * backend returns 502/504 and the whole list degrades to [] — which made every
+ * PR in that repo render "PR Gone". The CI rollup is fetched separately, with a
+ * bounded `contexts(first:N)` query that cannot blow the same limit (see
+ * rollupQuery / ROLLUP_CONTEXT_LIMIT).
+ */
 export const OPEN_FIELDS =
-  'number,title,headRefName,baseRefName,url,isDraft,reviewDecision,reviewRequests,latestReviews,updatedAt,mergeStateStatus,statusCheckRollup';
+  'number,title,headRefName,baseRefName,url,isDraft,reviewDecision,reviewRequests,latestReviews,updatedAt,mergeStateStatus';
 /** ...for `--state merged`. */
 export const MERGED_FIELDS = 'number,title,headRefName,url,mergedAt';
 /** ...for `--state closed`. */
@@ -106,8 +154,8 @@ export interface RepoPRs {
  * is also [] (the bash would have fed it to jq expressions that error or
  * yield nonsense; nothing valid ever comes back shaped that way).
  */
-function ghList(io: PollIo, gh: string, args: string[]): Obj[] {
-  const result = io.exec(gh, args);
+async function ghList(io: PollIo, gh: string, args: string[]): Promise<Obj[]> {
+  const result = await runExec(io, gh, args);
   if (result.status !== 0) return [];
   try {
     const parsed: unknown = JSON.parse(result.stdout);
@@ -148,32 +196,38 @@ export function uniqueByNumber(rows: Obj[]): Obj[] {
  * in neither the open nor the merged list, and would otherwise vanish from
  * signals with nothing to transition its item.
  */
-export function fetchRepoPRs(
+export async function fetchRepoPRs(
   io: PollIo,
   gh: string | null,
   repo: string,
   authorFilter: string | null,
   reviewLogin: string | null,
-): RepoPRs {
+  wantMergedClosed = true,
+): Promise<RepoPRs> {
   if (gh === null) return { repo, open: [], merged: [], closed: [] };
   const author = authorFilter === null ? [] : ['--author', authorFilter];
 
-  const open = ghList(io, gh, [
+  const open = await ghList(io, gh, [
     'pr', 'list', '--repo', repo, ...author,
     '--state', 'open', '--limit', '50', '--json', OPEN_FIELDS,
   ]);
   // A null reviewLogin turns the review-requested merge off entirely
   // (operator.includeReviewRequests: false) — the operator wants the board
   // to hold authored work only, so those PRs never even enter signals.
-  const review = reviewLogin === null ? [] : ghList(io, gh, [
+  const review = reviewLogin === null ? [] : await ghList(io, gh, [
     'pr', 'list', '--repo', repo, '--search', `review-requested:${reviewLogin}`,
     '--state', 'open', '--limit', '30', '--json', OPEN_FIELDS,
   ]);
-  const merged = ghList(io, gh, [
+  // merged/closed change rarely; the caller skips them on most polls and reuses
+  // the previous lists (collectGithub), so we never spend the two calls here.
+  if (!wantMergedClosed) {
+    return { repo, open: uniqueByNumber([...open, ...review]), merged: [], closed: [] };
+  }
+  const merged = await ghList(io, gh, [
     'pr', 'list', '--repo', repo, ...author,
     '--state', 'merged', '--limit', '20', '--json', MERGED_FIELDS,
   ]);
-  const closedAll = ghList(io, gh, [
+  const closedAll = await ghList(io, gh, [
     'pr', 'list', '--repo', repo, ...author,
     '--state', 'closed', '--limit', '10', '--json', CLOSED_FIELDS,
   ]);
@@ -208,7 +262,101 @@ export function ciRollup(statusCheckRollup: unknown): string {
   return 'green';
 }
 
+/**
+ * ciState from GitHub's own `statusCheckRollup.state` — the authoritative
+ * verdict over EVERY check on the PR, which is why the rollup query reads it
+ * instead of trusting the (bounded, possibly truncated) contexts: a PR with
+ * more than 100 checks cannot be judged from one page of them. Maps GitHub's
+ * StatusState enum onto poll.sh's four words. Returns null for an unknown or
+ * absent state so the caller falls back to ciRollup over the contexts — which
+ * also covers "no checks at all" (a null rollup has no state).
+ */
+export function ciFromRollupState(state: unknown): string | null {
+  switch (state) {
+    case 'SUCCESS':
+      return 'green';
+    case 'FAILURE':
+    case 'ERROR':
+      return 'red';
+    case 'PENDING':
+    case 'EXPECTED':
+      return 'running';
+    default:
+      return null;
+  }
+}
+
+// ── The preview deploy's own check ────────────────────────────────────────────
+
+/**
+ * How a deploy host names its check on GitHub, matched against the URL the
+ * preview was found by — so the pending signal tracks the host the chip
+ * actually opens. Cloudflare Pages deploys to *.pages.dev and names its check
+ * "Cloudflare Pages"; the other two name themselves.
+ */
+const DEPLOY_CHECKS: { url: RegExp; check: RegExp; not?: RegExp }[] = [
+  // Vercel posts two checks that both say "Vercel". `Vercel` is the deployment
+  // — a StatusContext, so its verdict is in `state` — and `Vercel Preview
+  // Comments` is the comment bot, a CheckRun that runs on the same push and
+  // finishes on its own schedule. Matching both would call the preview
+  // rebuilding whenever the bot was busy, which is not what the chip means and
+  // not what the banner should wait for.
+  { url: /vercel\.app/i, check: /^vercel\b/i, not: /comments?$/i },
+  { url: /netlify\.app/i, check: /netlify/i },
+  { url: /pages\.dev/i, check: /cloudflare/i },
+];
+
+/**
+ * True when a preview deployment is being built right now. Read from the same
+ * rollup `ciRollup` reads, before the raw entries are dropped from the row.
+ *
+ * Which checks count depends on whether there is a preview to compare against,
+ * and the empty case is the one that matters most:
+ *
+ * - **With a URL**, the host is known. Watch that host's check and no other, so
+ *   the signal tracks the deployment the chip actually opens rather than any
+ *   deploy that happens to be running — the chip means "the address you can
+ *   click is serving the previous push".
+ * - **Without one**, the PR has been pushed and no preview has ever been
+ *   published. This is exactly where the chip has something to say and nothing
+ *   to say it with: an empty slot cannot tell "this project has no previews"
+ *   from "the first one lands in ten seconds". The host is unknown too — it is
+ *   named by the URL that does not exist yet — so any deploy check the table
+ *   knows counts.
+ *
+ * A repository with no deploy check at all still returns false in both cases,
+ * which is the "no previews here" the empty slot goes on meaning.
+ */
+export function previewPendingFromRollup(rollup: unknown, previewUrl: string): boolean {
+  const hosts =
+    previewUrl === ''
+      ? DEPLOY_CHECKS
+      : DEPLOY_CHECKS.filter((entry) => entry.url.test(previewUrl));
+  if (hosts.length === 0) return false;
+  const entries = Array.isArray(rollup) ? rollup : [];
+  return entries.some((entry) => {
+    if (!isObj(entry)) return false;
+    // CheckRuns carry `name`, StatusContexts carry `context` — one or the other.
+    const name = entry['name'] ?? entry['context'];
+    if (typeof name !== 'string') return false;
+    const deploy = hosts.find((h) => h.check.test(name) && h.not?.test(name) !== true);
+    if (deploy === undefined) return false;
+    const value = String(jqAlt(jqAlt(entry['conclusion'], jqAlt(entry['state'], '')), ''));
+    return CI_PENDING.has(value);
+  });
+}
+
 // ── The batched details query ─────────────────────────────────────────────────
+
+/**
+ * How many review threads to pull per PR in the details query. poll.sh asked
+ * for 100; the GraphQL point cost is charged on the requested `first`, so this
+ * is a direct points lever. 40 covers effectively every real PR's thread count
+ * (a PR with more than 40 open threads is pathological), and unresolvedSample
+ * only ever shows the first 5. Lowering it does not change the output of any PR
+ * with ≤ 40 threads.
+ */
+export const THREAD_FETCH_LIMIT = 40;
 
 /**
  * poll.sh's rich per-PR fragment — reviewThreads with resolution, path, the
@@ -218,7 +366,7 @@ export function ciRollup(statusCheckRollup: unknown): string {
  */
 const PR_FRAGMENT = `fragment prDetails on PullRequest {
   number
-  reviewThreads(first: 100) { nodes {
+  reviewThreads(first: ${THREAD_FETCH_LIMIT}) { nodes {
     isResolved isOutdated path
     comments(first: 1) { nodes { author { login } body createdAt } }
     lastComment: comments(last: 1) { nodes { author { login } createdAt } } } }
@@ -288,6 +436,101 @@ export function indexDetails(response: unknown, aliasToRepo: Map<string, string>
   return index;
 }
 
+// ── The CI rollup query ───────────────────────────────────────────────────────
+
+/**
+ * How many check contexts to pull per PR for the CI rollup. Bounding this is the
+ * whole point: gh's own `--json statusCheckRollup` is unbounded and 502s on a
+ * busy repo, whereas `contexts(first: 20)` over every open PR in one query costs
+ * about one point and never blows the backend. 20 covers every real PR's check
+ * set; a repo running more than 20 checks on one PR only risks a check beyond
+ * the 20th changing the rollup, which no board has met.
+ */
+export const ROLLUP_CONTEXT_LIMIT = 100;
+
+/** The last commit's rollup — the per-PR body of rollupQuery. `state` is
+ *  GitHub's verdict over ALL checks (what ciState is derived from, so a PR with
+ *  more checks than one page holds is still judged correctly); `contexts`
+ *  (bounded at GitHub's hard max of 100) feeds previewPending, which only needs
+ *  to find the one named deploy check. The nodes are shaped exactly as
+ *  previewPendingFromRollup reads them: a CheckRun carries name+conclusion, a
+ *  StatusContext carries context+state. */
+const ROLLUP_SELECTION = `number commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: ${ROLLUP_CONTEXT_LIMIT}) { nodes {
+    __typename
+    ... on CheckRun { name status conclusion }
+    ... on StatusContext { context state } } } } } } }`;
+
+/**
+ * The CI rollup for every open PR, in ONE bounded query — the replacement for
+ * the statusCheckRollup field gh used to fold into `pr list`. Same aliasing as
+ * detailsQuery (r<i>/p<number>, sorted for a stable query), so the response
+ * walks by shape. Run every poll over ALL open PRs (not just the changed ones):
+ * a check completing does not bump the PR's updatedAt, so CI must be read fresh
+ * or it would stick — and at ~1 point for dozens of PRs, fresh is affordable.
+ */
+export function rollupQuery(open: { repo: string; number: number }[]): DetailsQuery {
+  const byRepo = new Map<string, number[]>();
+  for (const pr of open) {
+    const list = byRepo.get(pr.repo) ?? [];
+    list.push(pr.number);
+    byRepo.set(pr.repo, list);
+  }
+  const aliasToRepo = new Map<string, string>();
+  const blocks: string[] = [];
+  [...byRepo.keys()].sort().forEach((repo, index) => {
+    const parts = repo.split('/');
+    if (parts.length !== 2 || parts[0] === '' || parts[1] === '') return;
+    const alias = `r${index}`;
+    aliasToRepo.set(alias, repo);
+    const numbers = [...new Set(byRepo.get(repo) ?? [])].sort((a, b) => a - b);
+    const fields = numbers
+      .map((n) => `    p${n}: pullRequest(number: ${n}) { ${ROLLUP_SELECTION} }`)
+      .join('\n');
+    blocks.push(`  ${alias}: repository(owner: "${parts[0]}", name: "${parts[1]}") {\n${fields}\n  }`);
+  });
+  const query = `query {\n  rateLimit { remaining }\n${blocks.join('\n')}\n}`;
+  return { query, aliasToRepo };
+}
+
+/**
+ * Walks the rollup response to a map of (repo#number) → the flat context array
+ * ciRollup/previewPendingFromRollup expect. A PR is indexed ONLY when its node
+ * actually carries a `commits` field: a node without one (an errored PR, or a
+ * test stub that serves the threads fixture to this query) leaves no entry, so
+ * the caller falls back to whatever rollup the row already held rather than
+ * wrongly blanking its CI.
+ */
+export interface PrRollup {
+  /** GitHub's `statusCheckRollup.state` over all checks, or null (no rollup). */
+  state: string | null;
+  /** The bounded context nodes, for previewPending. */
+  contexts: Obj[];
+}
+
+export function indexRollups(response: unknown, aliasToRepo: Map<string, string>): Map<string, PrRollup> {
+  const index = new Map<string, PrRollup>();
+  if (!isObj(response)) return index;
+  const data = response['data'];
+  if (!isObj(data)) return index;
+  for (const [key, block] of Object.entries(data)) {
+    if (key === 'rateLimit') continue;
+    const repo = aliasToRepo.get(key);
+    if (repo === undefined || !isObj(block)) continue;
+    for (const node of Object.values(block)) {
+      if (!isObj(node)) continue;
+      const number = node['number'];
+      if (typeof number !== 'number') continue;
+      if (!('commits' in node)) continue; // no rollup info here — leave the fallback in charge
+      const commit = nodes(node['commits'])[0];
+      const rollup = isObj(commit) && isObj(commit['commit']) ? commit['commit']['statusCheckRollup'] : null;
+      const state = isObj(rollup) && typeof rollup['state'] === 'string' ? rollup['state'] : null;
+      const contexts = isObj(rollup) ? nodes(rollup['contexts']).filter(isObj) : [];
+      index.set(`${repo}#${number}`, { state, contexts });
+    }
+  }
+  return index;
+}
+
 // ── Field derivation ──────────────────────────────────────────────────────────
 
 /** `.nodes` of a connection, or [] — every `// []` in the jq at once. */
@@ -314,6 +557,45 @@ export interface DeriveOptions {
   ourLogins: string[];
   /** The scraped or reused preview URL; "" reads as none, like the shell var. */
   preview: string;
+  /**
+   * When `preview` is empty, the PR's `updatedAt` at the moment we last scraped
+   * for a preview and found none — the negative-result marker that stops the
+   * next poll re-scraping an unchanged PR. Written onto the row only when there
+   * is no preview to record instead; null/absent means "re-scrape as before".
+   */
+  previewScrapedFor?: string | null;
+}
+
+/**
+ * The list-derived half of an open row: the raw `gh pr list` fields plus the
+ * three fields that come from the FRESH row every poll — the preview URL, the
+ * preview-pending flag, and the one-word CI rollup. Shared by deriveOpenRow
+ * (which adds freshly-computed thread fields) and reuseOpenRow (which adds
+ * reused ones), so the list half can never drift between the two paths.
+ */
+function listDerived(pr: Obj, repo: string, preview: string): Obj {
+  return {
+    ...pr,
+    repo,
+    previewUrl: preview === '' ? null : preview,
+    previewPending: previewPendingFromRollup(pr['statusCheckRollup'], preview),
+    // Prefer GitHub's own rollup `state` (it weighs EVERY check, even on a PR
+    // whose 156 checks overflow the bounded contexts we fetch); fall back to
+    // computing from the contexts when no state is attached (older signals, and
+    // the tests, which carry a contexts array on the row and no `_rollupState`).
+    ciState: ciFromRollupState(pr['_rollupState']) ?? ciRollup(pr['statusCheckRollup']),
+  };
+}
+
+/** The shared tail of both open-row paths: the negative-scrape marker (only
+ *  when there is no preview to record) and dropping the raw rollup fields. */
+function finalizeOpenRow(row: Obj, previewScrapedFor: string | null | undefined): Obj {
+  if (row['previewUrl'] === null && typeof previewScrapedFor === 'string') {
+    row['previewScrapedFor'] = previewScrapedFor;
+  }
+  delete row['statusCheckRollup'];
+  delete row['_rollupState'];
+  return row;
 }
 
 /**
@@ -372,18 +654,83 @@ export function deriveOpenRow(pr: Obj, node: Obj | null, repo: string, options: 
     .slice(0, 5);
 
   const row: Obj = {
-    ...pr,
-    repo,
-    previewUrl: options.preview === '' ? null : options.preview,
-    ciState: ciRollup(pr['statusCheckRollup']),
+    ...listDerived(pr, repo, options.preview),
     unresolvedThreads: awaitingUs.length,
     threadsAwaitingReviewer: awaitingReviewer.length,
     unresolvedSample,
     latestActivityAt,
     reviewStates,
   };
-  delete row['statusCheckRollup'];
-  return row;
+  // The negative-scrape marker rides along ONLY when there is no preview to
+  // record — a found preview is reused by number forever and needs no marker,
+  // and omitting the key on that path keeps the row identical to the shell's.
+  return finalizeOpenRow(row, options.previewScrapedFor);
+}
+
+/**
+ * The open row for a PR that has NOT changed since the last poll: fresh
+ * list-derived fields (ciState/preview move with the current `gh pr list` row),
+ * but the five thread-derived fields are REUSED from the previous signals row
+ * instead of being recomputed from a fresh reviewThreads/reviews fetch. That
+ * fetch is the single most expensive part of the poll, and for an unchanged PR
+ * it would return exactly what we already hold — so this produces a row
+ * identical to a fresh deriveOpenRow while making no GraphQL request for it.
+ *
+ * "Unchanged" is decided by the caller (enrichPRs) on updatedAt + reviewDecision
+ * — the same updatedAt-keyed tolerance the preview negative-cache already runs.
+ */
+export function reuseOpenRow(
+  pr: Obj,
+  prev: Obj,
+  repo: string,
+  options: DeriveOptions,
+): Obj {
+  const asNumber = (v: unknown, fallback: number): number =>
+    typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+  const row: Obj = {
+    ...listDerived(pr, repo, options.preview),
+    unresolvedThreads: asNumber(prev['unresolvedThreads'], 0),
+    threadsAwaitingReviewer: asNumber(prev['threadsAwaitingReviewer'], 0),
+    unresolvedSample: Array.isArray(prev['unresolvedSample']) ? prev['unresolvedSample'] : [],
+    latestActivityAt: typeof prev['latestActivityAt'] === 'string' ? prev['latestActivityAt'] : null,
+    reviewStates: isObj(prev['reviewStates']) ? prev['reviewStates'] : {},
+  };
+  return finalizeOpenRow(row, options.previewScrapedFor);
+}
+
+/**
+ * Whether an open PR must be re-enriched this poll, or its thread-derived
+ * fields can be reused from `prev`. Reuse only when the previous row is one we
+ * actually enriched (it carries a numeric unresolvedThreads) AND neither the
+ * PR's updatedAt nor its reviewDecision has moved. updatedAt catches almost
+ * everything (a new comment, review or push bumps it); reviewDecision is the
+ * belt-and-suspenders trigger for a review verdict landing, and the whole rule
+ * degrades safely — an unsure case re-enriches rather than reuses.
+ */
+export function needsEnrich(row: Obj, prev: Obj | null): boolean {
+  if (prev === null) return true;
+  if (typeof prev['unresolvedThreads'] !== 'number') return true;
+  if ((prev['updatedAt'] ?? null) !== (row['updatedAt'] ?? null)) return true;
+  if ((prev['reviewDecision'] ?? null) !== (row['reviewDecision'] ?? null)) return true;
+  return false;
+}
+
+/** The previous poll's enriched open row for (repo, number), or null — the
+ *  reuse source for an unchanged PR, read from the same previous github.json
+ *  the preview cache reads. */
+export function previousOpenRow(previous: unknown, repo: string, number: number): Obj | null {
+  if (!isObj(previous)) return null;
+  const repos = previous['repos'];
+  if (!Array.isArray(repos)) return null;
+  for (const block of repos) {
+    if (!isObj(block) || block['repo'] !== repo) continue;
+    const open = block['open'];
+    if (!Array.isArray(open)) continue;
+    for (const prev of open) {
+      if (isObj(prev) && prev['number'] === number) return prev;
+    }
+  }
+  return null;
 }
 
 // ── Preview URL ───────────────────────────────────────────────────────────────
@@ -413,6 +760,36 @@ export function previewFromPrevious(previous: unknown, repo: string, number: num
     }
   }
   return '';
+}
+
+/**
+ * The `previewScrapedFor` marker recorded for (repo, number) in the previous
+ * signals/github.json: the PR's `updatedAt` the last time we scraped and found
+ * no preview. Null when there is no marker — a PR we have never scraped-empty,
+ * or one whose previous row predates this field. Its whole job is to let the
+ * next poll skip the `gh pr view` for a PR that has not changed since we last
+ * looked and came up empty — the 13-PRs-with-no-preview re-scrape that ran
+ * every cycle for nothing.
+ */
+export function previewScrapedForFromPrevious(
+  previous: unknown,
+  repo: string,
+  number: number,
+): string | null {
+  if (!isObj(previous)) return null;
+  const repos = previous['repos'];
+  if (!Array.isArray(repos)) return null;
+  for (const block of repos) {
+    if (!isObj(block) || block['repo'] !== repo) continue;
+    const open = block['open'];
+    if (!Array.isArray(open)) continue;
+    for (const row of open) {
+      if (!isObj(row) || row['number'] !== number) continue;
+      const marker = row['previewScrapedFor'];
+      return typeof marker === 'string' ? marker : null;
+    }
+  }
+  return null;
 }
 
 /**
@@ -455,13 +832,42 @@ export interface EnrichOptions {
   previousSignals?: unknown;
   /** config's preview.patterns; null/undefined keeps the default. */
   previewPatterns?: string[] | null;
+  /**
+   * Called once after the details pass with what it cost and did: the GraphQL
+   * budget `remaining` the query reported (null if no call was made or it
+   * failed) and how many open PRs were actually re-enriched this poll. poll.ts
+   * stores both on the github doc — the first to drive rate-limit backoff, the
+   * second to tell an idle board (0 enriched) from a busy one.
+   */
+  onStats?: (stats: { rateRemaining: number | null; enriched: number }) => void;
+}
+
+/** The `data.rateLimit.remaining` the details query reports, or null. */
+function rateRemainingFrom(parsed: unknown): number | null {
+  if (!isObj(parsed)) return null;
+  const data = parsed['data'];
+  if (!isObj(data)) return null;
+  const rl = data['rateLimit'];
+  if (!isObj(rl)) return null;
+  const remaining = rl['remaining'];
+  return typeof remaining === 'number' ? remaining : null;
 }
 
 /**
- * The enrichment pass over every repo's fetched lists: one batched GraphQL
- * call for all open PRs, then poll.sh's per-PR derivation. Repos keep their
- * input order; open rows keep theirs (already unique_by-sorted). merged and
- * closed pass through untouched — poll.sh never enriches a PR that is done.
+ * The enrichment pass over every repo's fetched lists. poll.sh re-fetched
+ * reviewThreads + reviews for EVERY open PR every poll — the single most
+ * expensive part of the cycle (measured at the bulk of ~475 GraphQL points on
+ * a 7-repo board). Almost none of those PRs changed between polls, and an
+ * unchanged PR's threads return exactly what the previous github.json already
+ * holds. So this enriches only the PRs that CHANGED (needsEnrich, keyed on
+ * updatedAt + reviewDecision like the preview cache), batches just those into
+ * the one GraphQL call, and REUSES the previous poll's thread-derived fields
+ * for the rest (reuseOpenRow). The list-derived fields (ciState, preview) are
+ * always fresh from the current `gh pr list` row, so the output of an unchanged
+ * PR is identical to a fresh enrichment — at zero GraphQL cost.
+ *
+ * Repos keep their input order; open rows keep theirs (already
+ * unique_by-sorted). merged and closed pass through untouched.
  */
 export function enrichPRs(
   io: PollIo,
@@ -469,61 +875,178 @@ export function enrichPRs(
   repos: RepoPRs[],
   options: EnrichOptions,
 ): RepoSignalBlock[] {
-  const open: { repo: string; number: number }[] = [];
+  // Decide reuse-vs-enrich per open PR first, so only the changed ones go into
+  // the (expensive) threads query. allOpen drives the (cheap) rollup query,
+  // which runs over every open PR every poll — CI changes do not bump a PR's
+  // updatedAt, so the rollup cannot be made incremental the way threads are.
+  const prevOf = new Map<string, Obj | null>();
+  const enrichSet = new Set<string>();
+  const toEnrich: { repo: string; number: number }[] = [];
+  const allOpen: { repo: string; number: number }[] = [];
   for (const block of repos) {
     for (const row of block.open) {
-      if (typeof row['number'] === 'number' && Number.isInteger(row['number'])) {
-        open.push({ repo: block.repo, number: row['number'] });
+      const number = row['number'];
+      if (typeof number !== 'number' || !Number.isInteger(number)) continue;
+      const key = `${block.repo}#${number}`;
+      allOpen.push({ repo: block.repo, number });
+      const prev = previousOpenRow(options.previousSignals, block.repo, number);
+      prevOf.set(key, prev);
+      if (needsEnrich(row, prev)) {
+        enrichSet.add(key);
+        toEnrich.push({ repo: block.repo, number });
       }
     }
   }
 
-  let details = new Map<string, Obj>();
-  if (gh !== null && open.length > 0) {
-    const { query, aliasToRepo } = detailsQuery(open);
+  let rateRemaining: number | null = null;
+
+  // The CI rollup for every open PR, in one bounded query (see rollupQuery:
+  // this is what replaced the statusCheckRollup gh folded into `pr list` and
+  // 502'd on busy repos). The row then derives ciState/previewPending from it.
+  let rollups = new Map<string, PrRollup>();
+  if (gh !== null && allOpen.length > 0) {
+    const { query, aliasToRepo } = rollupQuery(allOpen);
     const result = io.exec(gh, ['api', 'graphql', '-f', `query=${query}`]);
     if (result.status === 0) {
       try {
-        details = indexDetails(JSON.parse(result.stdout), aliasToRepo);
+        const parsed: unknown = JSON.parse(result.stdout);
+        rollups = indexRollups(parsed, aliasToRepo);
+        rateRemaining = rateRemainingFrom(parsed);
+      } catch {
+        // Degrade like the shell: no rollup, the lists (and CI 'none') survive.
+      }
+    }
+  }
+
+  // The threads/reviews enrichment, only for the PRs that changed.
+  let details = new Map<string, Obj>();
+  if (gh !== null && toEnrich.length > 0) {
+    const { query, aliasToRepo } = detailsQuery(toEnrich);
+    const result = io.exec(gh, ['api', 'graphql', '-f', `query=${query}`]);
+    if (result.status === 0) {
+      try {
+        const parsed: unknown = JSON.parse(result.stdout);
+        details = indexDetails(parsed, aliasToRepo);
+        if (rateRemaining === null) rateRemaining = rateRemainingFrom(parsed);
       } catch {
         // poll.sh's `|| echo '{}'`: enrichment degrades, the lists survive.
       }
     }
   }
 
-  return repos.map((block) => ({
+  const blocks = repos.map((block) => ({
     repo: block.repo,
     open: block.open.map((row) => {
       const number = row['number'];
+      const key = typeof number === 'number' ? `${block.repo}#${number}` : '';
       const node =
         typeof number === 'number' ? (details.get(`${block.repo}#${number}`) ?? null) : null;
+      // Attach the freshly-fetched CI rollup so ciState/previewPending derive
+      // from it (the open list no longer carries statusCheckRollup). If the
+      // rollup query had no entry for this PR — an errored node, or a test that
+      // served another fixture — keep whatever rollup the row already had.
+      const fetchedRollup = key === '' ? undefined : rollups.get(key);
+      const row2 =
+        fetchedRollup !== undefined
+          ? { ...row, statusCheckRollup: fetchedRollup.contexts, _rollupState: fetchedRollup.state }
+          : row;
       let preview = '';
+      let scrapedFor: string | null = null;
       if (typeof number === 'number' && Number.isInteger(number)) {
         preview = previewFromPrevious(options.previousSignals, block.repo, number);
         if (preview === '' && gh !== null) {
-          preview = scrapePreview(io, gh, block.repo, number, options.previewPatterns);
+          // Re-scrape only when there is a reason to. A preview is fixed for a
+          // branch's life and appears via a deploy-bot comment, which bumps the
+          // PR's updatedAt — so if updatedAt has not moved since we last looked
+          // and found nothing, the answer is still nothing and the `gh pr view`
+          // is pure cost. Look again when the PR changed, when a deploy is
+          // building this push (the comment may land without an updatedAt bump),
+          // or when we have never looked. This is the single biggest per-poll
+          // saving: the PRs that will never have a preview stop being scraped.
+          const updatedAt = typeof row['updatedAt'] === 'string' ? row['updatedAt'] : null;
+          const pending = previewPendingFromRollup(row2['statusCheckRollup'], '');
+          const lastScrapedFor = previewScrapedForFromPrevious(
+            options.previousSignals,
+            block.repo,
+            number,
+          );
+          const worthScraping = pending || updatedAt === null || lastScrapedFor !== updatedAt;
+          if (worthScraping) {
+            preview = scrapePreview(io, gh, block.repo, number, options.previewPatterns);
+            // Remember we looked at THIS version and found nothing, so the next
+            // poll can skip it until the PR changes again.
+            if (preview === '') scrapedFor = updatedAt;
+          } else {
+            // Carry the marker forward unchanged — the PR has not moved.
+            scrapedFor = lastScrapedFor;
+          }
         }
       }
-      return deriveOpenRow(row, node, block.repo, {
+      const derive: DeriveOptions = {
         ourLogins: options.ourLogins,
         preview,
-      });
+        previewScrapedFor: scrapedFor,
+      };
+      // Changed PRs (and malformed rows with no number) derive fresh from the
+      // GraphQL node; unchanged PRs reuse the previous poll's thread fields.
+      if (key === '' || enrichSet.has(key)) {
+        return deriveOpenRow(row2, node, block.repo, derive);
+      }
+      return reuseOpenRow(row2, prevOf.get(key) ?? {}, block.repo, derive);
     }),
     merged: block.merged,
     closed: block.closed,
   }));
+
+  options.onStats?.({ rateRemaining, enriched: toEnrich.length });
+  return blocks;
 }
 
-/** For callers that want the whole fetch+enrich in one call per poll. */
-export function collectGithub(
+/** The previous poll's merged/closed lists for a repo — reused on the polls
+ *  that skip the merged/closed fetch (they change rarely; see collectGithub's
+ *  wantMergedClosed). [] when the previous file has nothing for the repo. */
+function previousMergedClosed(previous: unknown, repo: string): { merged: Obj[]; closed: Obj[] } {
+  if (isObj(previous) && Array.isArray(previous['repos'])) {
+    for (const block of previous['repos']) {
+      if (!isObj(block) || block['repo'] !== repo) continue;
+      return {
+        merged: Array.isArray(block['merged']) ? block['merged'].filter(isObj) : [],
+        closed: Array.isArray(block['closed']) ? block['closed'].filter(isObj) : [],
+      };
+    }
+  }
+  return { merged: [], closed: [] };
+}
+
+/**
+ * The whole fetch+enrich in one call per poll. `wantMergedClosed` false skips
+ * the two per-repo merged/closed `gh pr list` calls and reuses the previous
+ * poll's lists instead — those states change rarely, so poll.ts fetches them
+ * only every cadence.mergedClosedEverySeconds and reuses in between, which
+ * removes 2 of every repo's 3 list calls from most polls.
+ */
+export async function collectGithub(
   io: PollIo,
   gh: string | null,
   repoNames: string[],
   authorFilter: string | null,
   reviewLogin: string | null,
   options: EnrichOptions,
-): RepoSignalBlock[] {
-  const fetched = repoNames.map((repo) => fetchRepoPRs(io, gh, repo, authorFilter, reviewLogin));
+  wantMergedClosed = true,
+): Promise<RepoSignalBlock[]> {
+  // The repos are independent, so fetch them concurrently (bounded) rather than
+  // one slow round trip after another — the poll's wall-clock cost now that the
+  // per-poll GraphQL points are tamed by incremental enrichment.
+  const fetched = await mapLimit(repoNames, REPO_FETCH_CONCURRENCY, (repo) =>
+    fetchRepoPRs(io, gh, repo, authorFilter, reviewLogin, wantMergedClosed),
+  );
+  if (!wantMergedClosed) {
+    for (const block of fetched) {
+      const prev = previousMergedClosed(options.previousSignals, block.repo);
+      block.merged = prev.merged;
+      block.closed = prev.closed;
+    }
+  }
   return enrichPRs(io, gh, fetched, options);
 }
 
@@ -549,6 +1072,20 @@ function reviewPreviewFromPrevious(previous: unknown, repo: string, number: numb
   return '';
 }
 
+/** The `previewScrapedFor` marker from the previous reviews.json — see the
+ *  github.json twin previewScrapedForFromPrevious. */
+function reviewScrapedForFromPrevious(previous: unknown, repo: string, number: number): string | null {
+  if (!isObj(previous)) return null;
+  const rows = previous['reviews'];
+  if (!Array.isArray(rows)) return null;
+  for (const row of rows) {
+    if (!isObj(row) || row['repo'] !== repo || row['number'] !== number) continue;
+    const marker = row['previewScrapedFor'];
+    return typeof marker === 'string' ? marker : null;
+  }
+  return null;
+}
+
 export interface ReviewQueueOptions {
   /** The previous signals/reviews.json, parsed, for previewUrl reuse. */
   previousSignals?: unknown;
@@ -557,14 +1094,48 @@ export interface ReviewQueueOptions {
 }
 
 /**
- * The reviews lane: every open PR in the given repos that awaits a review
- * from `reviewLogin` and was NOT written by them — their own PRs are board
- * work already, in the open list. One `gh pr list --search` per repo, the
- * author excluded in the search itself (`-author:` and `review-requested:`
- * both take `@me`), degraded to nothing-per-repo on any failure exactly as
- * the four board queries degrade. Rows come back newest-updated first; the
- * whole queue is re-sorted the same way across repos so the render never has
- * to invent an order.
+ * One cross-repo GraphQL search for the whole reviews lane, built from the
+ * configured repos. poll.sh (and the first port) ran one `gh pr list --search`
+ * PER repo — seven GraphQL search operations on a 7-repo board, every poll, for
+ * a lane that is usually short. GitHub's `search` OR-combines repeated `repo:`
+ * qualifiers, so the same queue comes back in ONE operation. `repository
+ * { nameWithOwner }` tags each hit with its repo (search spans them all at
+ * once), and `first: 100` covers every configured repo's requests together
+ * where the per-repo form capped at 30 each.
+ */
+function reviewSearchQuery(repoNames: string[], reviewLogin: string): string {
+  const repoQ = repoNames.map((r) => `repo:${r}`).join(' ');
+  const q = `${repoQ} review-requested:${reviewLogin} -author:${reviewLogin} is:pr is:open sort:updated-desc`;
+  return `query {
+  search(query: ${JSON.stringify(q)}, type: ISSUE, first: 100) {
+    nodes { ... on PullRequest {
+      number title url headRefName baseRefName isDraft updatedAt
+      author { login }
+      repository { nameWithOwner }
+    } }
+  }
+}`;
+}
+
+/** The PullRequest nodes of the review search response, or [] on any shape we
+ *  do not recognise — the degrade poll.sh got from its per-repo `|| echo []`. */
+function reviewNodesFrom(parsed: unknown): Obj[] {
+  if (!isObj(parsed)) return [];
+  const data = parsed['data'];
+  if (!isObj(data)) return [];
+  const search = data['search'];
+  if (!isObj(search) || !Array.isArray(search['nodes'])) return [];
+  return search['nodes'].filter(isObj);
+}
+
+/**
+ * The reviews lane: every open PR in the given repos that awaits a review from
+ * `reviewLogin` and was NOT written by them — their own PRs are board work
+ * already, in the open list. One cross-repo GraphQL search (reviewSearchQuery),
+ * degraded to [] on any failure exactly as the per-repo form degraded. The
+ * preview reuse/scrape negative-cache is unchanged, per row. Rows come back
+ * newest-updated first; the whole queue is re-sorted the same way so the render
+ * never has to invent an order.
  */
 export function collectReviewRequests(
   io: PollIo,
@@ -573,35 +1144,64 @@ export function collectReviewRequests(
   reviewLogin: string,
   options: ReviewQueueOptions = {},
 ): import('../types.js').ReviewRow[] {
-  if (gh === null) return [];
+  if (gh === null || repoNames.length === 0) return [];
+  // GitHub returns a repo's canonical nameWithOwner; map it back to the
+  // configured spelling (case-insensitively) so the row's repo — which keys the
+  // dismissal ledger and every consumer — stays exactly what the config wrote.
+  const canonical = new Map<string, string>();
+  for (const name of repoNames) canonical.set(name.toLowerCase(), name);
+
+  const result = io.exec(gh, ['api', 'graphql', '-f', `query=${reviewSearchQuery(repoNames, reviewLogin)}`]);
+  if (result.status !== 0) return [];
+  let listed: Obj[];
+  try {
+    listed = reviewNodesFrom(JSON.parse(result.stdout));
+  } catch {
+    return [];
+  }
+
   const rows: import('../types.js').ReviewRow[] = [];
-  for (const repo of repoNames) {
-    const listed = ghList(io, gh, [
-      'pr', 'list', '--repo', repo,
-      '--search', `review-requested:${reviewLogin} -author:${reviewLogin}`,
-      '--state', 'open', '--limit', '30', '--json', REVIEW_FIELDS,
-    ]);
-    for (const raw of listed) {
-      const number = raw['number'];
-      if (typeof number !== 'number' || !Number.isInteger(number)) continue;
-      const author = raw['author'];
-      let preview = reviewPreviewFromPrevious(options.previousSignals, repo, number);
-      if (preview === '') {
+  for (const raw of listed) {
+    const number = raw['number'];
+    if (typeof number !== 'number' || !Number.isInteger(number)) continue;
+    const repository = raw['repository'];
+    const nameWithOwner =
+      isObj(repository) && typeof repository['nameWithOwner'] === 'string'
+        ? repository['nameWithOwner']
+        : null;
+    if (nameWithOwner === null) continue;
+    const repo = canonical.get(nameWithOwner.toLowerCase()) ?? nameWithOwner;
+    const author = raw['author'];
+    const updatedAt = typeof raw['updatedAt'] === 'string' ? raw['updatedAt'] : null;
+    let preview = reviewPreviewFromPrevious(options.previousSignals, repo, number);
+    let scrapedFor: string | null = null;
+    if (preview === '') {
+      // Same negative-result skip as the board's open-PR pass: a review with
+      // no preview and no change since we last looked is not scraped again.
+      const lastScrapedFor = reviewScrapedForFromPrevious(options.previousSignals, repo, number);
+      if (updatedAt === null || lastScrapedFor !== updatedAt) {
         preview = scrapePreview(io, gh, repo, number, options.previewPatterns);
+        if (preview === '') scrapedFor = updatedAt;
+      } else {
+        scrapedFor = lastScrapedFor;
       }
-      rows.push({
-        repo,
-        number,
-        title: typeof raw['title'] === 'string' ? raw['title'] : '',
-        url: typeof raw['url'] === 'string' ? raw['url'] : null,
-        author: isObj(author) && typeof author['login'] === 'string' ? author['login'] : '?',
-        headRefName: typeof raw['headRefName'] === 'string' ? raw['headRefName'] : null,
-        baseRefName: typeof raw['baseRefName'] === 'string' ? raw['baseRefName'] : null,
-        isDraft: raw['isDraft'] === true,
-        updatedAt: typeof raw['updatedAt'] === 'string' ? raw['updatedAt'] : null,
-        previewUrl: preview === '' ? null : preview,
-      });
     }
+    const reviewRow: import('../types.js').ReviewRow = {
+      repo,
+      number,
+      title: typeof raw['title'] === 'string' ? raw['title'] : '',
+      url: typeof raw['url'] === 'string' ? raw['url'] : null,
+      author: isObj(author) && typeof author['login'] === 'string' ? author['login'] : '?',
+      headRefName: typeof raw['headRefName'] === 'string' ? raw['headRefName'] : null,
+      baseRefName: typeof raw['baseRefName'] === 'string' ? raw['baseRefName'] : null,
+      isDraft: raw['isDraft'] === true,
+      updatedAt,
+      previewUrl: preview === '' ? null : preview,
+    };
+    if (reviewRow.previewUrl === null && scrapedFor !== null) {
+      reviewRow.previewScrapedFor = scrapedFor;
+    }
+    rows.push(reviewRow);
   }
   // Newest activity first — the queue's one order, shared by every consumer.
   rows.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));

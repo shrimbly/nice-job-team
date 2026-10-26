@@ -27,14 +27,14 @@ function die(message: string): never {
  * exactly when neither the legacy config.json nor the machine + project pair
  * exists, so a migrated setup keeps polling without a legacy file.
  */
-async function pollVerb(onlyRepo?: string): Promise<void> {
+async function pollVerb(onlyRepo?: string, pollCache = false): Promise<void> {
   const orch = loadRoot();
   const loaded = loadConfig(orch);
   if (loaded.sources.length === 0) {
     throw new Error(`no config at ${orch.configPath} — run board doctor`);
   }
   const { boardDir } = resolveBoardDir();
-  const summary = runPoll(orch, boardDir, loaded.config, realPollIo(), { onlyRepo });
+  const summary = await runPoll(orch, boardDir, loaded.config, realPollIo(), { onlyRepo, pollCache });
   console.log(summary);
 }
 
@@ -116,7 +116,11 @@ export async function runCycle(argv: string[], deps: CycleDeps): Promise<void> {
   };
 
   await step('reconcile', () => reconcileVerb());
-  await step('poll', () => pollVerb());
+  // The cycle's poll opts into the orch-root cache: with a watcher per project,
+  // each cycling on its own interval, this is exactly the caller that was
+  // re-fetching the identical global PR set. A bare `board poll` (runPollVerb)
+  // stays uncached — a hand-run poll should be live.
+  await step('poll', () => pollVerb(undefined, true));
 
   // In-process since P3 — `board reap --auto --quiet`, exactly the invocation
   // cycle.sh shelled out to autoreap.sh for. stderr before stdout, the same

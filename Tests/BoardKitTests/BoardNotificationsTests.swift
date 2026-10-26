@@ -3,14 +3,15 @@ import Testing
 @testable import BoardKit
 
 /// The rules behind the app's merge/preview notifications: they fire on the
-/// edge (the poll a PR first becomes mergeable, or a preview first appears),
+/// edge (the poll a PR first becomes mergeable, or a preview deployment lands),
 /// never every poll it stays that way, and never for what was already true when
 /// the app first looked.
 struct BoardNotificationsTests {
 
     private func card(
         id: String, label: String = "Working", tone: Tone = .agent,
-        preview: String? = nil, prUrl: String? = "https://gh/pr", shortName: String = "P",
+        preview: String? = nil, pending: Bool = false,
+        prUrl: String? = "https://gh/pr", shortName: String = "P",
         prTitle: String? = nil, title: String = "the change"
     ) -> ProjectCard {
         ProjectCard(
@@ -24,7 +25,7 @@ struct BoardNotificationsTests {
                 agentPhase: nil, agentSummary: nil, liveness: nil, dirty: nil,
                 unpushed: nil, whatItIs: "w",
                 pill: Pill(label: label, tone: tone == .agent && label == "Mergeable" ? .good : tone),
-                whereItsAt: nil),
+                whereItsAt: nil, previewPending: pending),
             prTitle: prTitle)
     }
 
@@ -39,9 +40,11 @@ struct BoardNotificationsTests {
     @Test("an empty or nil preview URL is not a preview")
     func previewClassification() {
         let seed = BoardNotifier.snapshot([card(id: "a", preview: nil), card(id: "b", preview: "")])
-        #expect(seed["a"]?.hasPreview == false)
-        #expect(seed["b"]?.hasPreview == false)
-        #expect(BoardNotifier.snapshot([card(id: "c", preview: "https://x")])["c"]?.hasPreview == true)
+        #expect(seed["a"]?.preview == nil)
+        #expect(seed["b"]?.preview == nil)
+        let live = BoardNotifier.snapshot([card(id: "c", preview: "https://x")])["c"]?.preview
+        #expect(live == PreviewSignal(url: "https://x", pending: false))
+        #expect(live?.isLive == true)
     }
 
     @Test("a card becoming mergeable fires once, with the PR url")
@@ -59,7 +62,7 @@ struct BoardNotificationsTests {
         #expect(again.isEmpty)
     }
 
-    @Test("a preview appearing fires once, with the preview url")
+    @Test("a preview landing fires once, with the preview url")
     func previewEdge() {
         let before = BoardNotifier.snapshot([card(id: "a", preview: nil)])
         let (events, after) = BoardNotifier.diff(
@@ -71,6 +74,83 @@ struct BoardNotificationsTests {
         let (again, _) = BoardNotifier.diff(
             previous: after, current: [card(id: "a", preview: "https://preview.app")])
         #expect(again.isEmpty)
+    }
+
+    /// The complaint this rule exists for: a push is not something to be told
+    /// about, and the deploy it starts is what the banner waits for.
+    @Test("a push starts a deploy in silence, and only the landing notifies")
+    func deployLandingIsTheEdge() {
+        let live = BoardNotifier.snapshot([card(id: "a", preview: "https://preview.app")])
+
+        // The push. The URL is unchanged — the host keeps one per branch — and
+        // it is still serving the previous change, so there is nothing to see.
+        let (onPush, building) = BoardNotifier.diff(
+            previous: live,
+            current: [card(id: "a", preview: "https://preview.app", pending: true)])
+        #expect(onPush.isEmpty)
+        #expect(building["a"]?.preview?.isLive == false)
+
+        // A poll while it is still building says nothing either.
+        let (midway, stillBuilding) = BoardNotifier.diff(
+            previous: building,
+            current: [card(id: "a", preview: "https://preview.app", pending: true)])
+        #expect(midway.isEmpty)
+
+        // It lands.
+        let (landed, _) = BoardNotifier.diff(
+            previous: stillBuilding,
+            current: [card(id: "a", preview: "https://preview.app")])
+        #expect(landed.count == 1)
+        #expect(landed[0].kind == .preview)
+        #expect(landed[0].url == "https://preview.app")
+    }
+
+    /// The bug as reported: "it shows me all of my existing preview links". The
+    /// URL is read out of the deploy host's comment on the PR, which is a
+    /// second query — skip it, or have it rate-limited, and every card loses
+    /// its preview at once. Treating that as the previews going away made their
+    /// return look like a board's worth of deployments landing together.
+    @Test("a poll that loses the preview url is ignorance, not a deployment")
+    func blindPollDoesNotResetThePreview() {
+        let live = BoardNotifier.snapshot([
+            card(id: "a", preview: "https://a.app"),
+            card(id: "b", preview: "https://b.app"),
+        ])
+        // The query that resolves preview URLs comes back empty for everything.
+        let (blind, afterBlind) = BoardNotifier.diff(
+            previous: live, current: [card(id: "a"), card(id: "b")])
+        #expect(blind.isEmpty)
+        // The board remembers what it saw rather than recording the absence.
+        #expect(afterBlind["a"]?.preview?.url == "https://a.app")
+        #expect(afterBlind["b"]?.preview?.url == "https://b.app")
+
+        // And the URLs coming back is not news, because nothing was deployed.
+        let (restored, _) = BoardNotifier.diff(
+            previous: afterBlind,
+            current: [card(id: "a", preview: "https://a.app"), card(id: "b", preview: "https://b.app")])
+        #expect(restored.isEmpty)
+    }
+
+    /// The same blindness, mid-deploy: the board must not forget it was waiting.
+    @Test("a blind poll mid-deploy still lets the landing notify")
+    func blindPollMidDeploy() {
+        let building = BoardNotifier.snapshot(
+            [card(id: "a", preview: "https://a.app", pending: true)])
+        let (_, afterBlind) = BoardNotifier.diff(previous: building, current: [card(id: "a")])
+        #expect(afterBlind["a"]?.preview?.pending == true)
+        let (landed, _) = BoardNotifier.diff(
+            previous: afterBlind, current: [card(id: "a", preview: "https://a.app")])
+        #expect(landed.count == 1)
+        #expect(landed[0].kind == .preview)
+    }
+
+    @Test("a live preview at a new address notifies, host moves being real")
+    func movedHost() {
+        let live = BoardNotifier.snapshot([card(id: "a", preview: "https://old.app")])
+        let (events, _) = BoardNotifier.diff(
+            previous: live, current: [card(id: "a", preview: "https://new.app")])
+        #expect(events.count == 1)
+        #expect(events[0].url == "https://new.app")
     }
 
     @Test("both edges on one poll fire both notifications")
@@ -90,7 +170,7 @@ struct BoardNotificationsTests {
             previous: [:], current: [card(id: "a", label: "★ Ready to merge", preview: "https://p")])
         #expect(events.isEmpty)
         #expect(snapshot["a"]?.mergeable == true)
-        #expect(snapshot["a"]?.hasPreview == true)
+        #expect(snapshot["a"]?.preview?.url == "https://p")
     }
 
     @Test("a card that leaves and returns is re-seeded, not re-fired")
@@ -106,12 +186,19 @@ struct BoardNotificationsTests {
         #expect(events.isEmpty)
     }
 
-    @Test("the notification names the PR title when it differs from the card")
-    func usesPrTitle() {
+    /// The banner is one line under the menu bar, and the card's own title is
+    /// the one written for a person — the PR's is written for a commit log,
+    /// with its prefix and its trail of ticket ids. It is also the title the
+    /// operator will be looking for on the board once the banner sends them
+    /// there.
+    @Test("the notification names the card, not the PR")
+    func usesCardTitle() {
         let before = BoardNotifier.snapshot([card(id: "a", label: "Working")])
         let (events, _) = BoardNotifier.diff(
             previous: before,
-            current: [card(id: "a", label: "Mergeable", prTitle: "fix: the real PR title", title: "short")])
-        #expect(events[0].title == "fix: the real PR title")
+            current: [card(id: "a", label: "Mergeable",
+                           prTitle: "feat(scope): the long conventional-commit title (ENG-1, ENG-2)",
+                           title: "The short one")])
+        #expect(events[0].title == "The short one")
     }
 }

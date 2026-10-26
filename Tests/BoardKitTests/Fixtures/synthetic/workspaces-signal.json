@@ -1,16 +1,16 @@
 {
-  "workspaces": [
-    {
-      "id": "ws-links",
-      "name": "links workspace"
-    },
-    {
-      "id": "ws-building",
-      "name": "builder"
-    },
-    {
-      "id": "ws-blocked",
-      "name": "blocked one"
-    }
-  ]
+ "workspaces": [
+  {
+   "id": "ws-links",
+   "name": "links workspace"
+  },
+  {
+   "id": "ws-building",
+   "name": "builder"
+  },
+  {
+   "id": "ws-blocked",
+   "name": "blocked one"
+  }
+ ]
 }

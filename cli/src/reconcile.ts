@@ -20,6 +20,12 @@
 // as they did in bash. Each rule reads the values the jq read: $it (the item
 // as the pipeline found it) for the agent/PR lookups and rule 1, the current
 // item for everything downstream.
+//
+// Rule 3b is the one addition beyond the bash port: a card whose worktree the
+// operator deleted, and which has no PR to stand on, is retired to `abandoned`
+// so it leaves the board instead of ghosting forever. It keys on $it's
+// workspace (null coming IN), so like the rest it lands one cycle after the
+// disappearance — never on the cycle rule 3 first nulls the link.
 
 import { TERMINAL } from './statemachine.js';
 import type {
@@ -88,6 +94,22 @@ export interface ReconcileResult {
    */
   prunedStatusFiles: string[];
 }
+
+/**
+ * The states rule 3b retires from when the workspace is gone and no PR carries
+ * the item: the WORK states, where an agent was building something in a
+ * workspace and nothing durable outlived it. Deliberately not "everything but
+ * proposed/dispatched" — pr-open/ready/merged are PR-anchored (a missing PR
+ * there is a human's data problem, not a deleted worktree), and an unknown
+ * state is never assumed to have held a workspace.
+ */
+const RETIRABLE_WHEN_WORKSPACELESS: ReadonlySet<string> = new Set([
+  'building',
+  'awaiting-approval',
+  'fixing',
+  'blocked',
+  'orphaned',
+]);
 
 /**
  * jq's `//`: null and false fall through to the alternative, "" and 0 are
@@ -474,6 +496,61 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
         // cleared rather than left to lie.
         cur = { ...cur, workspaceDrift: null };
       }
+    }
+
+    // 3b. A card the operator threw away by deleting its worktree. Deleting a
+    //     workspace by hand is how you abandon work, and rule 3 above already
+    //     nulls the link when the workspace is gone — but the item then sits on
+    //     the board in a live state forever, a ghost with nothing behind it. So
+    //     once an item has no workspace and nothing else to stand on, retire it
+    //     to a terminal state, which takes it off the board (the app renders no
+    //     terminal card) and hands it to archive.
+    //
+    //     Every clause is a guard earned by a way this could go wrong:
+    //      - it.workspaceId null: it came INTO this pass workspaceless, so a
+    //        workspace nulled THIS cycle (rule 3) gets a full cycle of grace —
+    //        a transient poll blip that nulls-then-reappears is re-linked by
+    //        rule 3a next time, before this ever fires. Retiring is always one
+    //        cycle behind the disappearance, matching this file's other
+    //        two-cycle corrections.
+    //      - cur.workspaceId still null: rule 3a did not re-link it to a live
+    //        workspace on its branch, so the work really is gone.
+    //      - a workspace-bearing WORK state, whitelisted rather than "anything
+    //        but proposed/dispatched": these are the states an item reaches by
+    //        an agent working a workspace, with no durable artifact yet — so
+    //        losing the workspace loses everything. proposed/dispatched predate
+    //        the workspace (a candidate never had one; a just-dispatched local
+    //        item's may not have surfaced in this poll yet); pr-open/ready/
+    //        merged are anchored to a PR, and a missing PR there is a data
+    //        anomaly for a human, not a deleted worktree; and an UNKNOWN state
+    //        (a typo, an extension) is never assumed to have held a workspace.
+    //      - not cloud: a cloud item's workspaceId is null for its whole life
+    //        by design; it is tracked by its status file and PR, never a local
+    //        workspace, and must never be retired for lacking one.
+    //      - no PR: a PR is the durable record the worktree was only scaffolding
+    //        for. Keep the card while a PR carries it — rule 1c closes it once
+    //        the PR merges, and an open PR still needs a human.
+    //      - liveWorkspaces non-empty: the empty list is an offline poll, not an
+    //        empty fleet — the same guard rule 3 and the prune stand on, so a
+    //        transient failure never condemns the board.
+    if (
+      (it.workspaceId ?? null) === null &&
+      (cur.workspaceId ?? null) === null &&
+      RETIRABLE_WHEN_WORKSPACELESS.has(cur.state) &&
+      (orNull(cur.host) ?? 'local') !== 'cloud' &&
+      prNumberOf(cur.pr) === null &&
+      liveWorkspaces.length > 0
+    ) {
+      cur = {
+        ...cur,
+        state: 'abandoned',
+        history: appended(cur, {
+          at,
+          from: cur.state,
+          to: 'abandoned',
+          by: 'sync: workspace deleted',
+        }),
+      };
     }
 
     return cur;

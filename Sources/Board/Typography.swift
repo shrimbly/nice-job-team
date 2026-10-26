@@ -49,6 +49,9 @@ enum Typography {
     enum Icon {
         static let chip = Font.system(size: 12, weight: .medium)
         static let chevron = Font.system(size: 8, weight: .semibold)
+        /// Between the two: a mark that has to read as pressable without
+        /// carrying a chip's weight — the card's dismissal ×.
+        static let dismiss = Font.system(size: 10, weight: .semibold)
         static let confirmation = Font.system(size: 8, weight: .bold)
     }
 

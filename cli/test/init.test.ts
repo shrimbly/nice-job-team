@@ -319,7 +319,7 @@ describe('board init --apply', () => {
       '--path', layout.clone,
       '--base', 'main',
       '--operator', 'shrimbly',
-      '--name', 'Dev',
+      '--name', 'dev',
       '--linear', 'https://linear.app/acme/board',
       '--timezone', 'Australia/Sydney',
       '--reviewer', 'bob',
@@ -332,7 +332,7 @@ describe('board init --apply', () => {
     expect(config).toEqual({
       operator: {
         githubLogin: 'shrimbly',
-        linearName: 'Dev',
+        linearName: 'dev',
         linearWorkspace: 'acme',
         timezone: 'Australia/Sydney',
       },

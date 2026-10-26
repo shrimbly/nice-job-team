@@ -1,0 +1,4 @@
+# The publishing toolchain is private: the scrub map is every private string
+# in the repository gathered into one file. scrub.mjs deletes it from the staged
+# tree as well, so a tree that predates this line still cannot leak it.
+tools/publish/ export-ignore

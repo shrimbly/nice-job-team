@@ -93,7 +93,7 @@ describe('what must not fold', () => {
     // then keeps its item's identity is the assembler's half of the test.)
     const stacks = detect(
       [
-        pr(1382, 'eng-691-catch-up', 'develop', { repo: 'acme/desktop' }),
+        pr(1382, 'eng-691-catch-up', 'acme-builder', { repo: 'acme/desktop' }),
         pr(1384, 'eng-693-file-menu', 'eng-691-catch-up', { repo: 'acme/desktop' }),
       ],
       { claimed: [1382, 1384] },

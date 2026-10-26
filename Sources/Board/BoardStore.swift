@@ -41,9 +41,9 @@ final class BoardStore {
     /// first publish so nothing already-mergeable at launch fires.
     private var cardSignals: [String: CardSignal] = [:]
     private var notificationsSeeded = false
-    /// Posts merge/preview notifications. Injected by the app; nil in tests and
-    /// in any context without a UNUserNotificationCenter, where the diff still
-    /// runs (and is testable) but nothing is posted.
+    /// Posts merge/preview banners. Injected by the app; nil in tests and in
+    /// any context without a screen, where the diff still runs (and is
+    /// testable) but nothing is posted.
     var notifier: ((BoardNotification) -> Void)?
 
     /// The panel's "not first-hand data" flag, derived from the document rather
@@ -293,6 +293,35 @@ final class BoardStore {
         }
     }
 
+    /// `board dismiss <card id>`: takes a card off the board for good.
+    ///
+    /// Any card. A card the board invented for an unclaimed pull request has no
+    /// item to carry a state that would hide it, and this is how those go; a
+    /// card an item stands behind loses only its card — the item stays in
+    /// board.json and everything that reasons about it goes on doing so.
+    /// Reversible from the CLI (`board undismiss`), which is also where the
+    /// ledger can be read back (`board dismiss --list`).
+    func dismissCard(_ ref: String) async {
+        guard let cli else { return }
+        // Off the board before the CLI has answered, as a review dismissal is:
+        // the operator has said what they want, and the render that follows is
+        // what makes it true rather than what decides it.
+        cards.removeAll { $0.card.dismissalRef == ref }
+        do {
+            _ = try await Shell.run(
+                cli, ["dismiss", ref],
+                timeout: 30, environment: spawnEnvironment)
+            selfWroteAt = Date()
+            _ = try? await Shell.run(
+                cli, ["refresh", "--render-only"],
+                timeout: Self.renderTimeout, environment: spawnEnvironment)
+            selfWroteAt = Date()
+            publishFromDisk(spawnError: nil)
+        } catch {
+            lastError = Self.tail(of: error)
+        }
+    }
+
     /// `board review start --json`: a Superset workspace on the PR's branch with
     /// a review agent in it. Returns the superset:// URL to open, nil on failure
     /// (the footer carries the CLI's one-line refusal).
@@ -314,10 +343,10 @@ final class BoardStore {
 
     // MARK: - Notifications
 
-    /// Fire a banner when a card becomes mergeable, or a preview first appears.
-    /// The first publish only seeds the baseline — the operator opening the app
-    /// to a board of already-mergeable PRs should not be met with a stack of
-    /// banners for things that were true before they looked.
+    /// Fire a banner when a card becomes mergeable, or a preview deployment
+    /// lands. The first publish only seeds the baseline — the operator opening
+    /// the app to a board of already-mergeable PRs should not be met with a
+    /// stack of banners for things that were true before they looked.
     private func notify(_ cards: [ProjectCard]) {
         guard notificationsSeeded else {
             cardSignals = BoardNotifier.snapshot(cards)

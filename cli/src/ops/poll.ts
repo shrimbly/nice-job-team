@@ -8,7 +8,7 @@
 // events.log by section header and line shape, so every header and line here
 // is byte-for-byte what poll.sh printed — trailing spaces included.
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -91,6 +91,25 @@ export function realPollIo(): PollIo {
       }
       // Killed by a signal reports no status; any death is a nonzero here.
       return { status: result.status ?? 1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+    },
+    execAsync(cmd: string, args: string[], options?: ExecOptions): Promise<ExecResult> {
+      return new Promise<ExecResult>((resolve) => {
+        const child = spawn(cmd, args, { env: options?.env ?? process.env });
+        let stdout = '';
+        let stderr = '';
+        child.stdout?.setEncoding('utf8');
+        child.stderr?.setEncoding('utf8');
+        child.stdout?.on('data', (chunk: string) => {
+          stdout += chunk;
+        });
+        child.stderr?.on('data', (chunk: string) => {
+          stderr += chunk;
+        });
+        // spawn never throws for a missing binary — it emits 'error'; mirror the
+        // sync path's status 127 there, and a signal death (null code) as 1.
+        child.on('error', (err) => resolve({ status: 127, stdout: '', stderr: String(err) }));
+        child.on('close', (code) => resolve({ status: code ?? 1, stdout, stderr }));
+      });
     },
     now: nowIso,
     nowMs: () => Date.now(),
@@ -337,6 +356,116 @@ export interface PollOptions {
    * advance it.
    */
   keepBaseline?: boolean;
+  /**
+   * Somewhere to keep the GitHub pass for the rest of one refresh.
+   *
+   * The GitHub queries are global: the repos come from `config.repos`, not
+   * from the project, so every project polled asks GitHub the same questions
+   * and gets the same answers, which it then writes into its own signals
+   * directory. Three configured projects meant three identical passes — the
+   * same forty-five `gh` calls run three times, a minute of wall clock spent
+   * asking twice for what was already answered, and, at a sixty-second poll,
+   * enough traffic on its own to exhaust the hour's API budget and leave the
+   * board showing a degradation note instead of a board.
+   *
+   * Pass one object across the projects of a single refresh and the pass
+   * happens once. Each project still writes its own copy, so nothing about
+   * what a board shows changes; they now agree on `collectedAt` as well,
+   * having genuinely been collected at one moment.
+   */
+  shared?: SharedGithubPass;
+  /**
+   * Consult (and fill) the orch-root poll cache — the DISK counterpart to
+   * `shared`, which only spans one process's refresh. `shared` cannot help the
+   * separate per-project watcher processes, or the app's next refresh: those
+   * re-fetched the identical global PR set every time. With this set, a poll
+   * within cadence.pollCacheSeconds of the last one reuses its result instead
+   * of hitting GitHub. Off by default (and always off with --repo): a bare
+   * `board poll` stays a genuine live poll, the daemon (cycle) and the app
+   * (refresh) opt in.
+   */
+  pollCache?: boolean;
+}
+
+/** Filled in by the first project of a refresh, read by the rest. */
+export interface SharedGithubPass {
+  github?: GithubSignalsDoc;
+  reviews?: ReviewsSignalsDoc;
+}
+
+// ── The orch-root poll cache ────────────────────────────────────────────────────
+// The disk counterpart to SharedGithubPass. Every per-project watcher runs in
+// its own process on its own interval, and the app refreshes on its own; each
+// re-fetched the identical GLOBAL PR set (repos come from config, not the
+// project). This caches one poll's github/reviews result at the orch root,
+// keyed on the repo set, so any caller within the TTL reuses it. `collectedAt`
+// is compared against the injected clock, so a fresh temp-rooted test poll (its
+// clock stamped far in the past) never reads a stale cache written under real
+// time — and, more importantly, the cache is opt-in, so only the daemon and the
+// app touch it at all.
+
+interface PollCacheEntry {
+  /** The moment the cached pass was collected — the doc's own collectedAt. */
+  collectedAt: string;
+  /** The repo set the pass covered; a config change invalidates the cache. */
+  repoNames: string[];
+  /** The signals doc to write into a project's own signals directory. */
+  payload: unknown;
+}
+
+function pollCachePath(root: OrchRoot, kind: 'github' | 'reviews'): string {
+  return join(root.root, 'signals-cache', `${kind}.json`);
+}
+
+function sameRepoSet(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((name) => set.has(name));
+}
+
+/**
+ * The cached pass for this repo set, if one was collected within `ttlSeconds`
+ * of `nowIso`. Undefined on a miss for any reason — no file, unparseable, a
+ * different repo set, too old, or a collectedAt in the future (a clock skew we
+ * refuse to trust). `nowIso` is the caller's clock so the age is measured the
+ * same way collectedAt was stamped.
+ */
+function readPollCache(
+  root: OrchRoot,
+  kind: 'github' | 'reviews',
+  repoNames: string[],
+  nowIso: string,
+  ttlSeconds: number,
+): unknown | undefined {
+  let entry: PollCacheEntry;
+  try {
+    entry = JSON.parse(readFileSync(pollCachePath(root, kind), 'utf8')) as PollCacheEntry;
+  } catch {
+    return undefined;
+  }
+  if (entry === null || typeof entry !== 'object') return undefined;
+  if (typeof entry.collectedAt !== 'string' || !Array.isArray(entry.repoNames)) return undefined;
+  const ageSeconds = (Date.parse(nowIso) - Date.parse(entry.collectedAt)) / 1000;
+  if (!Number.isFinite(ageSeconds) || ageSeconds < 0 || ageSeconds >= ttlSeconds) return undefined;
+  if (!sameRepoSet(entry.repoNames, repoNames)) return undefined;
+  return entry.payload;
+}
+
+function writePollCache(
+  root: OrchRoot,
+  kind: 'github' | 'reviews',
+  repoNames: string[],
+  collectedAt: string,
+  payload: unknown,
+): void {
+  try {
+    mkdirSync(join(root.root, 'signals-cache'), { recursive: true });
+    const entry: PollCacheEntry = { collectedAt, repoNames, payload };
+    atomicWriteJson(pollCachePath(root, kind), entry);
+  } catch {
+    // The cache is an optimisation; a failure to write it must never fail the
+    // poll — the project's own signals were already written from the same doc.
+  }
 }
 
 /**
@@ -367,13 +496,13 @@ function resolveAuthor(config: BoardConfigFile): {
  * printed it — the four sections plus the deltas. Warnings go through io.warn
  * as they happen, the way the shell's went to stderr mid-run.
  */
-export function runPoll(
+export async function runPoll(
   root: OrchRoot,
   projectDir: string,
   config: BoardConfigFile,
   io: PollIo,
   options: PollOptions = {},
-): string {
+): Promise<string> {
   const signalsDir = join(projectDir, 'signals');
   mkdirSync(signalsDir, { recursive: true });
 
@@ -410,12 +539,104 @@ export function runPoll(
     ? patternsRaw.filter((p): p is string => typeof p === 'string')
     : null;
 
-  const repos = collectGithub(io, gh, repoNames, authorFilter, reviewLogin, {
-    ourLogins,
-    previousSignals,
-    previewPatterns,
-  });
-  const githubDoc: GithubSignalsDoc = { collectedAt: io.now(), repos };
+  // `--repo` narrows the repo set, so a pass collected without it is not the
+  // pass this call is asking for. No caller does both today; this is here so
+  // that adding one cannot silently write another repo set's answers. The
+  // disk cache stands on the same guard, for the same reason.
+  const shared = options.onlyRepo === undefined ? options.shared : undefined;
+  const cacheOn = options.pollCache === true && options.onlyRepo === undefined;
+  // Default the TTL to three-quarters of the watch interval: the owning watcher
+  // still re-fetches every cycle (its own cache has aged past the TTL by then),
+  // while siblings and the app, polling inside the window, reuse it.
+  const watchSecondsRaw = Number(cfg<number>(config, '.cadence.watchSeconds', 120));
+  const watchSeconds = Number.isFinite(watchSecondsRaw) && watchSecondsRaw > 0 ? watchSecondsRaw : 120;
+  const cacheTtlRaw = Number(
+    cfg<number>(config, '.cadence.pollCacheSeconds', Math.max(30, Math.round(watchSeconds * 0.75))),
+  );
+  const cacheTtl = Number.isFinite(cacheTtlRaw) ? cacheTtlRaw : 0;
+
+  // ── Throttle state, read from the previous github doc ──
+  // The previous poll recorded how much GraphQL budget was left, how many PRs
+  // it enriched, and when it last fetched merged/closed. Those drive three
+  // cheap economies: fetch the rarely-changing merged/closed lists only every
+  // so often, widen the cache when the board is idle, and back off hard as the
+  // hourly budget drains so the board never starves the agents.
+  const prevDoc = isObj(previousSignals) ? (previousSignals as Record<string, unknown>) : undefined;
+  const prevRate = typeof prevDoc?.['rateRemaining'] === 'number' ? (prevDoc['rateRemaining'] as number) : null;
+  const prevEnriched =
+    typeof prevDoc?.['enrichedCount'] === 'number' ? (prevDoc['enrichedCount'] as number) : null;
+  const prevMergedClosedAt =
+    typeof prevDoc?.['mergedClosedAt'] === 'string' ? (prevDoc['mergedClosedAt'] as string) : null;
+
+  const num = (path: string, dflt: number): number => {
+    const v = Number(cfg<number>(config, path, dflt));
+    return Number.isFinite(v) ? v : dflt;
+  };
+  const softFloor = num('.limits.rateLimitSoftFloor', 1000);
+  const hardFloor = num('.limits.rateLimitHardFloor', 200);
+  const belowSoft = prevRate !== null && prevRate < softFloor;
+  const belowHard = prevRate !== null && prevRate < hardFloor;
+
+  // merged/closed: fetch only every mergedClosedEverySeconds; a low budget also
+  // forces reuse. Between fetches collectGithub reuses the previous lists.
+  const mcEvery = num('.cadence.mergedClosedEverySeconds', 600);
+  const mcAgeSeconds =
+    prevMergedClosedAt === null
+      ? Infinity
+      : (Date.parse(io.now()) - Date.parse(prevMergedClosedAt)) / 1000;
+  const wantMergedClosed = !belowSoft && (!Number.isFinite(mcAgeSeconds) || mcAgeSeconds >= mcEvery);
+
+  // Effective disk-cache TTL: longer when the last poll found the board idle
+  // (nothing to enrich), longer again when the budget is low.
+  const idleTtl = num('.cadence.pollCacheIdleSeconds', 0);
+  let effectiveTtl = cacheTtl;
+  if (prevEnriched === 0 && idleTtl > effectiveTtl) effectiveTtl = idleTtl;
+  if (belowSoft) effectiveTtl = Math.max(effectiveTtl, cacheTtl * 3);
+
+  const hasPrevGithub = isObj(previousSignals) && Array.isArray(prevDoc?.['repos']);
+  // Last resort: budget critically low and we hold a previous fetch — serve it
+  // and make no GitHub calls at all this poll.
+  const serveCacheOnly = belowHard && hasPrevGithub;
+
+  let githubDoc = shared?.github;
+  if (githubDoc === undefined && cacheOn && effectiveTtl > 0) {
+    githubDoc = readPollCache(root, 'github', repoNames, io.now(), effectiveTtl) as
+      | GithubSignalsDoc
+      | undefined;
+  }
+  if (githubDoc === undefined && serveCacheOnly) {
+    githubDoc = previousSignals as GithubSignalsDoc;
+  }
+  if (githubDoc === undefined) {
+    let stats: { rateRemaining: number | null; enriched: number } = { rateRemaining: null, enriched: 0 };
+    const repos = await collectGithub(
+      io,
+      gh,
+      repoNames,
+      authorFilter,
+      reviewLogin,
+      { ourLogins, previousSignals, previewPatterns, onStats: (s) => { stats = s; } },
+      wantMergedClosed,
+    );
+    const collectedAt = io.now();
+    githubDoc = {
+      collectedAt,
+      repos,
+      // Stamp the merged/closed fetch time so the next poll knows when they are
+      // due again; carry the previous stamp forward on a poll that reused them.
+      mergedClosedAt: wantMergedClosed ? collectedAt : (prevMergedClosedAt ?? collectedAt),
+      // A poll that enriched nothing makes no details call and learns no new
+      // remaining — carry the previous reading so backoff state persists.
+      rateRemaining: stats.rateRemaining ?? prevRate,
+      enrichedCount: stats.enriched,
+    };
+    if (cacheOn && effectiveTtl > 0) {
+      writePollCache(root, 'github', repoNames, githubDoc.collectedAt, githubDoc);
+    }
+  }
+  // Share in-process too, whether the doc came from the cache or a fresh fetch,
+  // so the rest of one refresh's projects never re-read the file.
+  if (shared !== undefined) shared.github = githubDoc;
   atomicWriteJson(githubFile, githubDoc);
 
   // ── The review queue ──
@@ -431,13 +652,35 @@ export function runPoll(
   } catch {
     previousReviews = undefined;
   }
-  const reviewsDoc: ReviewsSignalsDoc = {
-    collectedAt: io.now(),
-    reviews: collectReviewRequests(io, gh, repoNames, authorFilter ?? '@me', {
-      previousSignals: previousReviews,
-      previewPatterns,
-    }),
-  };
+  let reviewsDoc = shared?.reviews;
+  if (reviewsDoc === undefined && cacheOn && effectiveTtl > 0) {
+    reviewsDoc = readPollCache(root, 'reviews', repoNames, io.now(), effectiveTtl) as
+      | ReviewsSignalsDoc
+      | undefined;
+  }
+  // Under the critical-budget serve-cache path, reuse the previous reviews too
+  // rather than spend the one search call.
+  if (
+    reviewsDoc === undefined &&
+    serveCacheOnly &&
+    isObj(previousReviews) &&
+    Array.isArray(previousReviews['reviews'])
+  ) {
+    reviewsDoc = previousReviews as unknown as ReviewsSignalsDoc;
+  }
+  if (reviewsDoc === undefined) {
+    reviewsDoc = {
+      collectedAt: io.now(),
+      reviews: collectReviewRequests(io, gh, repoNames, authorFilter ?? '@me', {
+        previousSignals: previousReviews,
+        previewPatterns,
+      }),
+    };
+    if (cacheOn && effectiveTtl > 0) {
+      writePollCache(root, 'reviews', repoNames, reviewsDoc.collectedAt, reviewsDoc);
+    }
+  }
+  if (shared !== undefined) shared.reviews = reviewsDoc;
   atomicWriteJson(reviewsFile, reviewsDoc);
 
   // ── Superset + agents ──

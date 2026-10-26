@@ -124,11 +124,11 @@ test('recentlyClosed reproduces the jq list, tie order included', () => {
   // flips what the stable sort kept, so 439 leads despite 441 coming first in
   // board.json. The byte compare pins the row key order too.
   const expected = [
-    { title: 'Tidy the search exports', state: 'closed', num: 391, at: '2026-07-30T18:18:15Z' },
-    { title: 'Restore the exports exports', state: 'rejected', num: 467, at: '2026-07-30T18:15:43Z' },
-    { title: 'Restore the reports dashboard', state: 'closed', num: 439, at: '2026-07-30T16:32:37Z' },
-    { title: 'Group the reports search', state: 'closed', num: 440, at: '2026-07-30T16:32:37Z' },
-    { title: 'Cap the exports exports', state: 'closed', num: 441, at: '2026-07-30T16:32:37Z' },
+    { title: 'State the exception list, not the total', state: 'closed', num: 391, at: '2026-07-30T18:18:15Z' },
+    { title: '(new PR — needs grouping)', state: 'rejected', num: 467, at: '2026-07-30T18:15:43Z' },
+    { title: 'Name the Pre-install column for the action', state: 'closed', num: 439, at: '2026-07-30T16:32:37Z' },
+    { title: 'Say what Pre-install does, not how it is implemented', state: 'closed', num: 440, at: '2026-07-30T16:32:37Z' },
+    { title: 'Stop offering to include every custom node', state: 'closed', num: 441, at: '2026-07-30T16:32:37Z' },
   ];
   expect(payload.recentlyClosed).toEqual(expected);
   expect(JSON.stringify(payload.recentlyClosed, null, 2)).toBe(JSON.stringify(expected, null, 2));
@@ -149,8 +149,8 @@ test('the cutoff filters dated rows and keeps undated ones', () => {
     'reference',
   );
   expect(undated.recentlyClosed).toEqual([
-    { title: 'Name the settings dashboard', state: 'rejected', num: null, at: null },
-    { title: 'Add the dashboard billing', state: 'closed', num: 702, at: null },
+    { title: 'item i-rejected', state: 'rejected', num: null, at: null },
+    { title: 'item i-closed', state: 'closed', num: 702, at: null },
   ]);
 });
 
@@ -251,7 +251,12 @@ test('the two modes disagree only where a divergence or rewording is declared', 
     const reference = byId(inputs, 'reference');
     const app = buildPayload(inputs, 'app');
     const differing = app.cards
-      .filter((card) => JSON.stringify(card) !== JSON.stringify(reference.get(card.id)))
+      .filter((card) => {
+        // previewPending is the one key app mode adds — a declared difference
+        // of shape, stripped here so only differences of value name themselves.
+        const { previewPending: _pending, ...rest } = card;
+        return JSON.stringify(rest) !== JSON.stringify(reference.get(card.id));
+      })
       .map((card) => card.id)
       .sort();
     expect(differing).toEqual(expected);

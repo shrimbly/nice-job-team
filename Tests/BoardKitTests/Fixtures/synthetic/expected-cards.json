@@ -3,8 +3,8 @@
     {
       "id": "i-gate-nosummary",
       "num": 921,
-      "title": "Align the alerts alerts",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-gate-nosummary",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": "ws-gate-nosum",
       "workspaceUrl": "superset://v2-workspace/ws-gate-nosum",
@@ -20,23 +20,23 @@
       "mergeState": "CLEAN",
       "needsOperator": false,
       "agentState": "awaiting-approval",
-      "agentPhase": "working on the settings settings",
+      "agentPhase": "self-review complete",
       "agentSummary": null,
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Align the alerts alerts",
+      "whatItIs": "item i-gate-nosummary",
       "pill": {
         "label": "No reviewer",
         "tone": "you"
       },
-      "whereItsAt": "last agent update: working on the settings settings"
+      "whereItsAt": "last agent update: self-review complete"
     },
     {
       "id": "i-no-reviewer",
       "num": 918,
-      "title": "Widen the members projects",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-no-reviewer",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -57,7 +57,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "green and clean, but NO reviewer requested",
+      "whatItIs": "green and clean, but NO reviewer",
       "pill": {
         "label": "No reviewer",
         "tone": "you"
@@ -67,8 +67,8 @@
     {
       "id": "i-no-reviewer-red",
       "num": 915,
-      "title": "State the members reports",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-no-reviewer-red",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -89,7 +89,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "State the members reports",
+      "whatItIs": "item i-no-reviewer-red",
       "pill": {
         "label": "No reviewer",
         "tone": "you"
@@ -99,8 +99,8 @@
     {
       "id": "i-fixing-agent",
       "num": 904,
-      "title": "Cap the settings reports",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-fixing-agent",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": "ws-fixing",
       "workspaceUrl": "superset://v2-workspace/ws-fixing",
@@ -116,23 +116,23 @@
       "mergeState": "CLEAN",
       "needsOperator": false,
       "agentState": "fixing",
-      "agentPhase": "working on the settings exports",
+      "agentPhase": "addressing review #3",
       "agentSummary": null,
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Cap the settings reports",
+      "whatItIs": "item i-fixing-agent",
       "pill": {
         "label": "No reviewer",
         "tone": "you"
       },
-      "whereItsAt": "last agent update: working on the settings exports"
+      "whereItsAt": "last agent update: addressing review #3"
     },
     {
       "id": "i-needs",
       "num": 902,
-      "title": "Show the members projects",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-needs",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": "ws-needs",
       "workspaceUrl": "superset://v2-workspace/ws-needs",
@@ -149,22 +149,22 @@
       "needsOperator": true,
       "agentState": "awaiting-approval",
       "agentPhase": null,
-      "agentSummary": "working on the settings reports",
+      "agentSummary": "Gate: 4 files, +120/-30.\nsecond line should be dropped",
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Show the members projects",
+      "whatItIs": "item i-needs",
       "pill": {
         "label": "Needs you",
         "tone": "you"
       },
-      "whereItsAt": "working on the settings reports"
+      "whereItsAt": "Gate: 4 files, +120/-30."
     },
     {
       "id": "i-blocked",
       "num": 901,
-      "title": "Colour the exports audit",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-blocked",
+      "branch": "feat/x",
       "workspace": "blocked one",
       "workspaceId": "ws-blocked",
       "workspaceUrl": "superset://v2-workspace/ws-blocked",
@@ -180,23 +180,23 @@
       "mergeState": "CLEAN",
       "needsOperator": true,
       "agentState": "blocked",
-      "agentPhase": "working on the dashboard exports",
+      "agentPhase": "stuck on auth",
       "agentSummary": null,
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Colour the exports audit",
+      "whatItIs": "item i-blocked",
       "pill": {
         "label": "Blocked",
         "tone": "you"
       },
-      "whereItsAt": "last agent update: working on the dashboard exports"
+      "whereItsAt": "last agent update: stuck on auth"
     },
     {
       "id": "i-changes-red",
       "num": 916,
-      "title": "Name the members reports",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-changes-red",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -217,7 +217,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Name the members reports",
+      "whatItIs": "item i-changes-red",
       "pill": {
         "label": "Changes req",
         "tone": "bad"
@@ -227,8 +227,8 @@
     {
       "id": "i-changes",
       "num": 912,
-      "title": "State the search projects",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-changes",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -249,7 +249,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "State the search projects",
+      "whatItIs": "item i-changes",
       "pill": {
         "label": "Changes req",
         "tone": "bad"
@@ -259,8 +259,8 @@
     {
       "id": "i-conflicts-running",
       "num": 911,
-      "title": "Align the billing search",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-conflicts-running",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -281,7 +281,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Align the billing search",
+      "whatItIs": "item i-conflicts-running",
       "pill": {
         "label": "Conflicts",
         "tone": "bad"
@@ -291,8 +291,8 @@
     {
       "id": "i-conflicts",
       "num": 908,
-      "title": "Group the members members",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-conflicts",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -313,7 +313,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Group the members members",
+      "whatItIs": "item i-conflicts",
       "pill": {
         "label": "Conflicts",
         "tone": "bad"
@@ -323,8 +323,8 @@
     {
       "id": "i-ci-red",
       "num": 907,
-      "title": "Show the members members",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-ci-red",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -345,7 +345,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Show the members members",
+      "whatItIs": "item i-ci-red",
       "pill": {
         "label": "CI red",
         "tone": "bad"
@@ -355,8 +355,8 @@
     {
       "id": "i-summary-only",
       "num": 920,
-      "title": "Show the exports dashboard",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-summary-only",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": "ws-sum",
       "workspaceUrl": "superset://v2-workspace/ws-sum",
@@ -373,22 +373,22 @@
       "needsOperator": false,
       "agentState": "building",
       "agentPhase": null,
-      "agentSummary": "working on the members settings",
+      "agentSummary": "only a summary, no phase",
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Show the exports dashboard",
+      "whatItIs": "item i-summary-only",
       "pill": {
         "label": "Working",
         "tone": "agent"
       },
-      "whereItsAt": "working on the members settings"
+      "whereItsAt": "only a summary, no phase"
     },
     {
       "id": "i-fixing-item",
       "num": 905,
-      "title": "Name the members billing",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-fixing-item",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -409,7 +409,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Name the members billing",
+      "whatItIs": "item i-fixing-item",
       "pill": {
         "label": "Fixing",
         "tone": "agent"
@@ -419,8 +419,8 @@
     {
       "id": "i-building",
       "num": 903,
-      "title": "Flag the billing alerts",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-building",
+      "branch": "feat/x",
       "workspace": "builder",
       "workspaceId": "ws-building",
       "workspaceUrl": "superset://v2-workspace/ws-building",
@@ -436,23 +436,23 @@
       "mergeState": "CLEAN",
       "needsOperator": false,
       "agentState": "building",
-      "agentPhase": "working on the reports members",
+      "agentPhase": "writing the decoder",
       "agentSummary": null,
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Flag the billing alerts",
+      "whatItIs": "item i-building",
       "pill": {
         "label": "Working",
         "tone": "agent"
       },
-      "whereItsAt": "working on the reports members"
+      "whereItsAt": "writing the decoder"
     },
     {
       "id": "i-dispatched",
       "num": null,
-      "title": "Colour the audit audit",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-dispatched",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -473,7 +473,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Colour the audit audit",
+      "whatItIs": "item i-dispatched",
       "pill": {
         "label": "Starting",
         "tone": "agent"
@@ -483,8 +483,8 @@
     {
       "id": "i-building-nopr",
       "num": null,
-      "title": "Align the projects dashboard",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-building-nopr",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -505,7 +505,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Align the projects dashboard",
+      "whatItIs": "item i-building-nopr",
       "pill": {
         "label": "Working",
         "tone": "agent"
@@ -515,8 +515,8 @@
     {
       "id": "i-ready",
       "num": 933,
-      "title": "Tidy the exports audit",
-      "branch": "dev/eng-600-clever-dashboard",
+      "title": "item i-ready",
+      "branch": "feat/ready",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -537,7 +537,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Tidy the exports audit",
+      "whatItIs": "item i-ready",
       "pill": {
         "label": "★ Ready to merge",
         "tone": "good"
@@ -547,8 +547,8 @@
     {
       "id": "i-links",
       "num": 919,
-      "title": "Align the reports alerts",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-links",
+      "branch": "feat/x",
       "workspace": "links workspace",
       "workspaceId": "ws-links",
       "workspaceUrl": "superset://v2-workspace/ws-links",
@@ -564,23 +564,23 @@
       "mergeState": "CLEAN",
       "needsOperator": false,
       "agentState": "building",
-      "agentPhase": "working on the billing billing",
+      "agentPhase": "wiring links",
       "agentSummary": null,
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "working on the exports members",
+      "whatItIs": "every link type on one card",
       "pill": {
         "label": "Mergeable",
         "tone": "good"
       },
-      "whereItsAt": "last agent update: working on the billing billing"
+      "whereItsAt": "last agent update: wiring links"
     },
     {
       "id": "i-mergeable-running",
       "num": 910,
-      "title": "Name the exports dashboard",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-mergeable-running",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -601,7 +601,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Name the exports dashboard",
+      "whatItIs": "item i-mergeable-running",
       "pill": {
         "label": "Mergeable",
         "tone": "good"
@@ -611,8 +611,8 @@
     {
       "id": "i-mergeable",
       "num": 909,
-      "title": "Show the reports audit",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-mergeable",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -633,7 +633,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Show the reports audit",
+      "whatItIs": "item i-mergeable",
       "pill": {
         "label": "Mergeable",
         "tone": "good"
@@ -643,8 +643,8 @@
     {
       "id": "i-merged",
       "num": 700,
-      "title": "Restore the search billing",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-merged",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -665,7 +665,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Restore the search billing",
+      "whatItIs": "item i-merged",
       "pill": {
         "label": "Merged — reap",
         "tone": "good"
@@ -675,8 +675,8 @@
     {
       "id": "i-in-review-red",
       "num": 914,
-      "title": "Group the audit audit",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-in-review-red",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -697,7 +697,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Group the audit audit",
+      "whatItIs": "item i-in-review-red",
       "pill": {
         "label": "In review",
         "tone": "review"
@@ -707,8 +707,8 @@
     {
       "id": "i-in-review",
       "num": 913,
-      "title": "Add the settings billing",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-in-review",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -729,7 +729,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Add the settings billing",
+      "whatItIs": "item i-in-review",
       "pill": {
         "label": "In review",
         "tone": "review"
@@ -739,8 +739,8 @@
     {
       "id": "i-draft-red",
       "num": 917,
-      "title": "Cap the search settings",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-draft-red",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -761,7 +761,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Cap the search settings",
+      "whatItIs": "item i-draft-red",
       "pill": {
         "label": "Draft",
         "tone": "mute"
@@ -771,8 +771,8 @@
     {
       "id": "i-draft",
       "num": 906,
-      "title": "Add the dashboard billing",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-draft",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -793,7 +793,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Add the dashboard billing",
+      "whatItIs": "item i-draft",
       "pill": {
         "label": "Draft",
         "tone": "mute"
@@ -803,8 +803,8 @@
     {
       "id": "i-gone",
       "num": 701,
-      "title": "Add the search exports",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-gone",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -825,7 +825,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Add the search exports",
+      "whatItIs": "item i-gone",
       "pill": {
         "label": "Gone from open",
         "tone": "mute"
@@ -835,8 +835,8 @@
     {
       "id": "i-other",
       "num": null,
-      "title": "Restore the projects reports",
-      "branch": "dev/eng-646-swift-projects",
+      "title": "item i-other",
+      "branch": "feat/x",
       "workspace": null,
       "workspaceId": null,
       "workspaceUrl": null,
@@ -857,7 +857,7 @@
       "liveness": null,
       "dirty": null,
       "unpushed": null,
-      "whatItIs": "Restore the projects reports",
+      "whatItIs": "item i-other",
       "pill": {
         "label": "queued",
         "tone": "mute"

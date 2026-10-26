@@ -9,6 +9,8 @@
     "operator.includeReviewRequests: whether PRs you were asked to review (but did not write) join the board. Default true. Set false to keep the board to authored work only \u2014 the review-requested query is skipped entirely, so those PRs never enter signals or get cards.",
     "review: the reviews lane \u2014 PRs others wrote that await your review, shown on the app's Reviews tab and by board review list. review.prompt is the template board review start hands the review agent, with {url} {repo} {number} {title} {author} {branch} {base} substituted; unset means the built-in comment-only default. review.countsAsNeedsYou folds pending reviews into the menu-bar alert count; default false (the tab badge is the only signal). Dismissals live in reviews-dismissed.json at the orchestrator root, are permanent per PR, and are reversed only by board review undismiss.",
     "preview: optional. The board finds a preview deployment by matching the PR's bot comments. Vercel by default; give preview.patterns to match Netlify, Cloudflare Pages or anything else. First pattern to match wins, so order is preference. An unusable pattern is dropped rather than fatal.",
+    "agent selection: dispatch can spawn any Superset preset agent (claude, codex, gemini, copilot, amp) or opencode. Precedence for which agent runs an item: board dispatch --agent <name> > repos[].agent > superset.agent (default claude). opencode is not a Superset preset, so it is run via the workspace command `opencode run -m <model>`; every other agent is a first-class Superset agent session.",
+    "models: friendly name \u2192 the provider/model id a runner wants, e.g. {\"glm 5.3\": \"zhipuai/glm-4.6\"}. Only opencode reads a model (board dispatch --agent opencode --model \"glm 5.3\"); a preset agent picks its own. An unlisted name is passed through as-is, so you can always hand the exact id. agents.opencode.defaultModel is used when --model is omitted. Run `board agents install-skills` once so Codex and OpenCode can find the implementer skill.",
     "repos[]: one entry per repo you orchestrate. supersetProjectId comes from `superset projects list --json`.",
     "repos[].reviewers: default reviewers assigned when a PR is opened. First entry is the primary.",
     "repos[].localPath: the main clone (not a worktree) \u2014 used for branch existence and log checks.",
@@ -19,6 +21,7 @@
     "limits.maxActiveCloudSessions is the same count for cloud items, kept separate because the two are different limits: the local cap is this machine's memory (a workspace is a full checkout plus an agent session), and a cloud session costs this machine nothing. The cloud cap is review capacity and the account's rate limit.",
     "cloud: dispatch to Claude Code on the web with `board dispatch --host cloud`. Off by default. fireUrl is a routine's API trigger endpoint; the bearer token lives in the environment variable named by tokenEnv, NEVER in this file. defaultHost picks the host when --host is not passed. One-time setup and the constraints are in reference/cloud-sessions.md.",
     "cadence values are seconds and feed ScheduleWakeup; the orchestrator may tighten them when CI is running.",
+    "cadence.pollCacheSeconds is how long one GitHub poll is reused across the per-project watchers and the app; pollCacheIdleSeconds is a longer TTL used when the last poll enriched nothing (an idle board); mergedClosedEverySeconds is how often the rarely-changing merged/closed PR lists are refetched — they are reused in between, so a merged/closed PR can take up to this long to leave the board. limits.rateLimitSoftFloor / rateLimitHardFloor are GraphQL-budget thresholds: below soft the poll skips merged/closed and widens the cache, below hard it serves the last fetch and makes no GitHub calls, so the board never exhausts the hour's budget the workspace agents also draw on.",
     "gates: set any of these to false only if the operator explicitly asks. Defaults are deliberately cautious.",
     "answers: standing decisions the orchestrator may relay to a blocked agent without asking again.",
     "LAYOUT: this file and workspaces/ live at the ROOT (~/.claude/superset-orchestrator/). Per-project state lives in p/<key>/: board.json, briefs/, signals/, events.log, watch.pid.",
@@ -48,6 +51,14 @@
     "patterns": [
       "https://[a-z0-9._-]*vercel\\.app[^ )\"]*"
     ]
+  },
+  "models": {
+    "glm 5.3": "zhipuai/glm-4.6"
+  },
+  "agents": {
+    "opencode": {
+      "defaultModel": "zhipuai/glm-4.6"
+    }
   },
   "repos": [
     {
@@ -110,12 +121,18 @@
     "maxProposalsPerRound": 5,
     "maxStackDepth": 3,
     "stallMinutes": 45,
-    "recentlyClosedDays": 7
+    "recentlyClosedDays": 7,
+    "rateLimitSoftFloor": 1000,
+    "rateLimitHardFloor": 200
   },
   "cadence": {
     "idleSeconds": 1500,
     "activeSeconds": 600,
-    "ciRunningSeconds": 300
+    "ciRunningSeconds": 300,
+    "watchSeconds": 120,
+    "pollCacheSeconds": 90,
+    "pollCacheIdleSeconds": 300,
+    "mergedClosedEverySeconds": 600
   },
   "gates": {
     "approveBeforeDispatch": true,

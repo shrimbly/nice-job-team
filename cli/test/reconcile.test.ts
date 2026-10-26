@@ -474,6 +474,117 @@ describe('rule 3 — workspace gone, or on the wrong branch', () => {
   });
 });
 
+describe('rule 3b — a deleted worktree retires the card', () => {
+  // The item comes in already workspaceless — a workspace nulled on THIS cycle
+  // gets a cycle of grace first (see the two-cycle case below).
+  const ghost = (over: Partial<BoardItem> = {}): BoardItem =>
+    item({ state: 'awaiting-approval', workspaceId: null, pr: null, branch: 'feat-x', ...over });
+  const someLive = [{ id: 'ws-elsewhere', branch: 'other' }];
+
+  test('workspaceless, PR-less, and no live workspace on its branch → abandoned', () => {
+    const out = run({ board: board(ghost()), liveWorkspaces: someLive });
+    expect(out.board.items[0]!.state).toBe('abandoned');
+    expect(out.board.items[0]!.workspaceId).toBeNull();
+    expect(lastEntry(out)).toEqual({
+      at: AT,
+      from: 'awaiting-approval',
+      to: 'abandoned',
+      by: 'sync: workspace deleted',
+    });
+    expect(out.stdout).toEqual(['  live-item: sync: workspace deleted → abandoned']);
+  });
+
+  test('the abandon lands the cycle AFTER the workspace disappears, not the same one', () => {
+    // Cycle one: the workspace is gone from a non-empty live list. Rule 3 nulls
+    // the link; 3b holds off because the item still CAME IN with a workspace.
+    const live = [{ id: 'ws-elsewhere', branch: 'other' }];
+    const first = run({
+      board: board(item({ state: 'awaiting-approval', workspaceId: 'ws-dead', branch: 'feat-x' })),
+      liveWorkspaces: live,
+    });
+    expect(first.board.items[0]!.workspaceId).toBeNull();
+    expect(first.board.items[0]!.state).toBe('awaiting-approval');
+    expect(first.stdout).toEqual(['  live-item: sync: workspace gone → awaiting-approval']);
+
+    // Cycle two: it comes in workspaceless and still finds nothing → retired.
+    const second = run({ board: first.board, liveWorkspaces: live });
+    expect(second.board.items[0]!.state).toBe('abandoned');
+    expect(second.stdout).toEqual(['  live-item: sync: workspace deleted → abandoned']);
+  });
+
+  test('a transient empty live list never abandons — the offline-poll guard', () => {
+    const out = run({ board: board(ghost()), liveWorkspaces: [] });
+    expect(out.board.items[0]!.state).toBe('awaiting-approval');
+    expect(out.stdout).toEqual([]);
+  });
+
+  test('re-linked by branch (rule 3a) → kept, not abandoned', () => {
+    const out = run({
+      board: board(ghost({ branch: 'feat-x' })),
+      liveWorkspaces: [{ id: 'ws-bbbbbbbbbbbb', branch: 'feat-x' }],
+    });
+    expect(out.board.items[0]!.workspaceId).toBe('ws-bbbbbbbbbbbb');
+    expect(out.board.items[0]!.state).toBe('awaiting-approval');
+  });
+
+  test('a PR keeps a work-state card alive — the worktree was only scaffolding', () => {
+    // fixing IS a retirable work state, so only the PR guard spares this one.
+    const out = run({
+      board: board(ghost({ state: 'fixing', pr: { number: 77, url: 'https://gh/77' } })),
+      liveWorkspaces: someLive,
+    });
+    expect(out.board.items[0]!.state).toBe('fixing');
+    expect(out.stdout).toEqual([]);
+  });
+
+  test('an unknown state is never assumed to have held a workspace', () => {
+    // Not in the retirable whitelist, so a typo or an extension state is left
+    // exactly as found rather than silently retired.
+    const out = run({
+      board: board(item({ state: 'queued', workspaceId: null, pr: null })),
+      liveWorkspaces: someLive,
+    });
+    expect(out.board.items[0]!.state).toBe('queued');
+    expect(out.stdout).toEqual([]);
+  });
+
+  test('a PR-anchored state (pr-open) with no PR is a human data problem, not retired', () => {
+    const out = run({
+      board: board(ghost({ state: 'pr-open', pr: null })),
+      liveWorkspaces: someLive,
+    });
+    expect(out.board.items[0]!.state).toBe('pr-open');
+    expect(out.stdout).toEqual([]);
+  });
+
+  test('a proposed candidate never had a workspace → never abandoned', () => {
+    const out = run({
+      board: board(item({ state: 'proposed', workspaceId: null, pr: null })),
+      liveWorkspaces: someLive,
+    });
+    expect(out.board.items[0]!.state).toBe('proposed');
+    expect(out.stdout).toEqual([]);
+  });
+
+  test('a just-dispatched item is spared until its workspace has a chance to appear', () => {
+    const out = run({
+      board: board(item({ state: 'dispatched', workspaceId: null, pr: null })),
+      liveWorkspaces: someLive,
+    });
+    expect(out.board.items[0]!.state).toBe('dispatched');
+    expect(out.stdout).toEqual([]);
+  });
+
+  test('a cloud item is workspaceless by design → never abandoned', () => {
+    const out = run({
+      board: board(ghost({ host: 'cloud' })),
+      liveWorkspaces: someLive,
+    });
+    expect(out.board.items[0]!.state).toBe('awaiting-approval');
+    expect(out.stdout).toEqual([]);
+  });
+});
+
 describe('the prune decision', () => {
   test('a status file claimed by this board whose workspace died is condemned, and stops voting', () => {
     const dead: AgentStatus = { workspaceId: 'ws-dead', state: 'building' }; // ours, workspace gone
@@ -985,19 +1096,17 @@ describe('P4 fixtures — a board without observations reconciles byte-identical
     live: {
       path: '.',
       stdout: [
-        '  item-brisk-exports: sync: agent status → building (#444)',
-        '  item-north-members: sync: workspace gone → fixing (#442)',
-        '  item-brisk-members: sync: agent status → awaiting-approval (#438)',
-        '  item-swift-audit: sync: agent status → building'
+        '  pr444-body: sync: agent status → building (#444)',
+        '  pr442-rebase: sync: workspace gone → fixing (#442)',
+        '  pr438-ci-fix: sync: agent status → awaiting-approval (#438)',
+        '  board-app: sync: agent status → building',
       ],
       stderr: [
-        '  drift: item-calm-settings expects dev/eng-595-quiet-settings but its workspace is on dev/eng-584-tidy-audit'
+        '  drift: pr466-models-step-copy expects dev/eng-595-quiet-settings but its workspace is on dev/eng-584-tidy-audit',
       ],
-      pruned: [
-        '13078e34-7a18-4710-88a8-0a4d0461d694'
-      ],
-      boardBytes: 8933,
-      boardSha256: '3269a196008ba9b8e89ad5731829f6e83e846c7b2a62bef9364d24112fbd8944',
+      pruned: ['13078e34-7a18-4710-88a8-0a4d0461d694'],
+      boardBytes: 9193,
+      boardSha256: '777ef215c9d9f0f10b70bf752eee259e5f6aa91f1ca720795b63f52bba74912c',
     },
     synthetic: {
       path: 'synthetic',
@@ -1008,19 +1117,19 @@ describe('P4 fixtures — a board without observations reconciles byte-identical
         '  i-fixing-agent: sync: workspace gone → pr-open (#904)',
         '  i-fixing-item: sync: PR healthy, status file stale → pr-open (#905)',
         '  i-mergeable: sync: approved, green, mergeable → ready (#909)',
+        // rule 3b: i-building-nopr is `building` with no workspace and no PR —
+        // a deleted worktree with nothing left to stand on, so it retires. (The
+        // recaptured pin below reflects this one deliberate change; i-other,
+        // in an unknown `queued` state, is left alone by the whitelist.)
+        '  i-building-nopr: sync: workspace deleted → abandoned',
         '  i-links: sync: approved, green, mergeable → ready (#919)',
         '  i-summary-only: sync: workspace gone → pr-open (#920)',
-        '  i-gate-nosummary: sync: workspace gone → pr-open (#921)'
+        '  i-gate-nosummary: sync: workspace gone → pr-open (#921)',
       ],
       stderr: [],
-      pruned: [
-        'ws-fixing',
-        'ws-gate-nosum',
-        'ws-needs',
-        'ws-sum'
-      ],
-      boardBytes: 7055,
-      boardSha256: '1faaba0fc7b5a244386366419e20b8ce59391e755169271b4f940994c47a2f34',
+      pruned: ['ws-fixing', 'ws-gate-nosum', 'ws-needs', 'ws-sum'],
+      boardBytes: 6338,
+      boardSha256: 'b8fcc51aaec4bc382c7fc32dc404c14ceb5ba77a76d3b104cfb30f7fdbbe1155',
     },
   } as const;
 

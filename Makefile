@@ -48,3 +48,27 @@ test:
 clean:
 	swift package clean
 	@rm -rf dist
+
+# ── Publishing to the public repository ───────────────────────────────────────
+# The fixtures here are real captures and the docs use real branches, so the
+# public repo gets a scrubbed snapshot, never this history. tools/publish/README.md
+# is the procedure; these are its three steps. publish-verify is the one that
+# matters — it proves the scrubbed tree still builds and passes, which is how a
+# rename that broke the fixtures' internal arithmetic gets caught before anyone
+# else sees it.
+.PHONY: publish-stage publish-verify publish
+
+publish-stage:
+	node tools/publish/scrub.mjs
+
+publish-verify: publish-stage
+	cd dist/publish && swift test
+	cd dist/publish/cli && npm ci --silent && npm run build
+	node tools/publish/repin.mjs
+	cd dist/publish/cli && npm test
+
+# Commits the staged tree into a throwaway clone and stops. Pass the message,
+# review the diff it prints, then push with the command it gives you.
+publish:
+	@test -n "$(M)" || (echo 'usage: make publish M="the commit message"'; exit 2)
+	node tools/publish/publish.mjs -m "$(M)"

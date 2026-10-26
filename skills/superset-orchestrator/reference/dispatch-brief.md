@@ -29,7 +29,7 @@ cannot.
 - **Item:** itm_007
 - **Source:** Linear ENG-142 — https://linear.app/acme/issue/ENG-142/…
 - **Repo:** acme/website (worktree you are already in)
-- **Branch:** dev/eng-142-run-history-denser-more-informative-data-table
+- **Branch:** dev/eng-142-run-history-denser-more-informative-log-table
 - **Base:** main
 - **Reviewer (when the operator approves the PR):** @octocat
 - **Domain:** run-history

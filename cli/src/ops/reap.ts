@@ -340,7 +340,7 @@ export async function reap(deps: ReapDeps, opts: ReapOptions = {}): Promise<Reap
   }
 
   // ── 3b. prune the empty parent a slashed branch name leaves behind ──────────
-  // `dev/model-count-copy` becomes .../worktrees/<project>/dev/model-
+  // `dev/eng-13-swift-dashboard` becomes .../worktrees/<project>/dev/model-
   // count-copy, so deleting the leaf strands an empty `dev/`. Only ever
   // removes empty dirs, and never climbs above the worktrees root.
   if (wt !== '') {
